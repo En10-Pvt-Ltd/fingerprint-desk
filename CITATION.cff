@@ -1,13 +1,12 @@
 cff-version: 1.2.0
-  message: "If you use this software, please cite it as below."
-  title: "Fingerprint Desk: Forensic fingerprinting for printed documents"
-  authors:
+message: "If you use this software, please cite it as below."
+title: "Fingerprint Desk: Forensic fingerprinting for printed documents"
+authors:
   - family-names: "Kasar"
-      given-names: "Niraj Vijay"
-  type: software
+    given-names: "Niraj Vijay"
+type: software
 license: Apache-2.0
-  repository-code: "https://github.com/En10-Pvt-Ltd/fingerprint-desk"
-  doi: "10.5281/zenodo.21588529"
-  version: "0.1.0"
-  date-released: "2026-07-26"
-  
+repository-code: "https://github.com/En10-Pvt-Ltd/fingerprint-desk"
+doi: "10.5281/zenodo.21588529"
+version: "0.1.0"
+date-released: "2026-07-26"
