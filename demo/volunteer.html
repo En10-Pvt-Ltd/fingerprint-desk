@@ -1,0 +1,158 @@
+<!-- SPDX-License-Identifier: Apache-2.0 -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Volunteer - Fingerprint Field Test</title>
+<link rel="stylesheet" href="styles.css">
+<style>
+  .card h2 { margin-top: 0; font-size: 1.05rem; color: var(--ink); }
+</style>
+</head>
+<body>
+<nav class="topnav" aria-label="Site">
+  <div class="topnav-inner">
+    <a class="brand" href="index.html"><span class="brand-mark" aria-hidden="true"></span>
+      Who Leaked the Paper?</a>
+    <div class="links">
+      <a href="index.html#problem">Problem</a>
+      <a href="index.html#act2">Fingerprint</a>
+      <a href="index.html#act4">Guarantee</a>
+    </div>
+  </div>
+</nav>
+<div class="vol" style="padding-bottom:0">
+  <div class="banner" id="app-flow-banner"
+       style="margin-top:1.2rem; text-align:center; border-color:var(--gold);
+              padding:1.1rem 1.2rem">
+    <strong>The field test has moved into the app - no account needed.</strong>
+    Get a print pack code (like <code>FP001</code>), print three sheets,
+    photograph them, and upload straight from your phone. Results reveal
+    when all three sheets are in.<br>
+    <a class="btn" id="app-flow-link" href="/"
+       style="margin-top:.7rem">Open the app &amp; enter your pack code</a>
+  </div>
+</div>
+<script>
+  /* set to the deployed app URL */
+  const APP_URL = "/";
+  document.getElementById("app-flow-link").href = APP_URL;
+</script>
+<div class="vol">
+  <p class="kicker" style="margin-top:1.2rem">The field test &middot; volunteers wanted</p>
+  <h1>Help us test invisible document fingerprints</h1>
+  <p class="muted">
+    ~15 minutes, a printer, a phone, and WhatsApp. You print three test
+    sheets, photograph them, send the photos through WhatsApp, and upload
+    both versions. Every capture becomes part of an open research corpus
+    measuring whether sub-millimeter print geometry survives real printers,
+    real phones, and real messaging apps.
+  </p>
+
+  <div id="setup-banner" class="banner" hidden>
+    Portal not configured yet: the maintainer needs to fill in
+    <code>SUPABASE_URL</code> / <code>SUPABASE_ANON_KEY</code> in
+    <code>volunteer.js</code>. The protocol below still tells you what the
+    study involves.
+  </div>
+
+  <div class="card" id="auth-card">
+    <h2>1 &middot; Sign in</h2>
+    <p class="muted">We email you a magic sign-in link. Your address is used
+      only for sign-in and submission bookkeeping: never published, never
+      shared, deletable on request.</p>
+    <label for="email">Email</label>
+    <input type="email" id="email" placeholder="you@example.com" autocomplete="email">
+    <button id="btn-login">Send magic link</button>
+    <p id="auth-status" class="muted"></p>
+  </div>
+
+  <div class="card" id="pack-card" hidden>
+    <h2>2 &middot; Your print pack</h2>
+    <p id="pack-status" class="muted">Claiming a pack for you…</p>
+    <p><a id="pack-link" hidden>Download your pack (3 sheets + instructions)</a></p>
+    <p class="muted">Print all three sheets at <strong>100% scale</strong>
+      ("Actual size", never "Fit to page").</p>
+  </div>
+
+  <div class="card">
+    <h2>The capture protocol</h2>
+    <ol class="protocol">
+      <li><strong>Print</strong> the three sheets (laser or inkjet, plain paper, 100% scale).</li>
+      <li><strong>Photograph</strong> each sheet flat on a table, page filling the frame, normal room light.</li>
+      <li><strong>WhatsApp</strong> each photo to yourself (or a friend) and save the received copy.</li>
+      <li><strong>Upload</strong> both files per sheet below. Never edit, crop, or enhance the images.</li>
+    </ol>
+  </div>
+
+  <div class="card" id="upload-card" hidden>
+    <h2>3 &middot; Submit a capture</h2>
+    <label>Sheet</label>
+    <select id="f-sheet"><option>A</option><option>B</option><option>C</option></select>
+    <label>Your phone tier</label>
+    <select id="f-phone">
+      <option value="budget">Budget (&lt; $200)</option>
+      <option value="mid" selected>Mid-range</option>
+      <option value="flagship">Flagship</option>
+    </select>
+    <label>Camera angle</label>
+    <select id="f-angle">
+      <option value="0" selected>Straight above (~0&deg;)</option>
+      <option value="15">Slightly tilted (~15&deg;)</option>
+      <option value="30">Tilted (~30&deg;)</option>
+      <option value="45">Very tilted (~45&deg;)</option>
+    </select>
+    <label>Lighting</label>
+    <select id="f-lighting">
+      <option value="office" selected>Normal room light</option>
+      <option value="dim_tube">Dim indoor light</option>
+      <option value="flash_glare">Flash on</option>
+      <option value="window_backlight">Strong window light behind</option>
+    </select>
+    <label>Framing</label>
+    <select id="f-framing">
+      <option value="full" selected>Whole page in frame</option>
+      <option value="half">About half the page</option>
+      <option value="single-question">One question/paragraph close-up</option>
+    </select>
+    <label>Messaging hop applied</label>
+    <select id="f-messaging">
+      <option value="wa" selected>WhatsApp once</option>
+      <option value="wa_x2">WhatsApp twice (forwarded)</option>
+      <option value="tg">Telegram once</option>
+      <option value="none">None (uploading original only)</option>
+    </select>
+    <label>Original photo (straight from camera)</label>
+    <input type="file" id="f-original" accept="image/*">
+    <label>Received copy after the messaging hop</label>
+    <input type="file" id="f-messaged" accept="image/*">
+    <label>Notes (optional: printer model, anything odd)</label>
+    <textarea id="f-note" rows="2"></textarea>
+    <label style="font-weight:400">
+      <input type="checkbox" id="f-consent">
+      I took these photos myself, they contain only the test sheets, and I
+      release them under CC0 (public domain) for research use.
+    </label>
+    <button id="btn-submit">Upload capture</button>
+    <p id="submit-status"></p>
+  </div>
+
+  <div class="card" id="subs-card" hidden>
+    <h2>Your submissions</h2>
+    <table class="subs"><thead>
+      <tr><th>When</th><th>Sheet</th><th>Conditions</th><th>Files</th></tr>
+    </thead><tbody id="subs-body"></tbody></table>
+  </div>
+
+  <p class="muted">
+    Privacy &amp; scope: uploads are photographs of OUR generated test
+    sheets only (never real exam papers). Ground truth stays offline with
+    the research repo; results are reported in aggregate. Questions or
+    deletion requests: see the contact on the main page.
+  </p>
+</div>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="volunteer.js"></script>
+</body>
+</html>

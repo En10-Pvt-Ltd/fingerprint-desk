@@ -1,0 +1,30 @@
+{
+ "capture": "doc02_helv_headings__v2__p0.jpeg",
+ "labeled_as": {
+  "doc": "doc02_helv_headings",
+  "sheet": "v2",
+  "page": 0
+ },
+ "carrier": "line-shift (the pdf_lineshift carrier has no word-shift)",
+ "observation": {
+  "ok": true,
+  "path": "robust+crop1.guided",
+  "deskew_deg": -1.05,
+  "n_lines_found": 46,
+  "reason": null
+ },
+ "scores": {
+  "v1": {
+   "line_ok": 6,
+   "line_tot": 13,
+   "line_acc": 0.462,
+   "binomial_p_one_sided": 0.70947265625
+  },
+  "v2": {
+   "line_ok": 6,
+   "line_tot": 13,
+   "line_acc": 0.462,
+   "binomial_p_one_sided": 0.70947265625
+  }
+ }
+}

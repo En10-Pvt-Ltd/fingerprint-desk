@@ -1,0 +1,32 @@
+{
+ "capture": "doc02_helv_headings__v1__p0.jpeg",
+ "labeled_as": {
+  "doc": "doc02_helv_headings",
+  "sheet": "v1",
+  "page": 0
+ },
+ "carrier": "line-shift (the pdf_lineshift carrier has no word-shift)",
+ "observation": {
+  "ok": false,
+  "path": "robust",
+  "deskew_deg": -0.5,
+  "n_lines_found": {
+   "crop1.threshold": 4,
+   "crop1.autocorr": 32,
+   "crop1.guided": {
+    "quality": 0.783,
+    "scale_ratio": 1.22,
+    "valley_ratio": 0.165
+   },
+   "cropU.threshold": 5,
+   "cropU.autocorr": 36,
+   "cropU.guided": {
+    "quality": 0.891,
+    "scale_ratio": 0.98,
+    "valley_ratio": 0.16
+   }
+  },
+  "reason": "no segmenter matched the meta's 46-line structure (attempts: {'crop1.threshold': 4, 'crop1.autocorr': 32, 'crop1.guided': {'quality': 0.783, 'scale_ratio': np.float64(1.22), 'valley_ratio': 0.165}, 'cropU.threshold': 5, 'cropU.autocorr': 36, 'cropU.guided': {'quality': 0.891, 'scale_ratio': np.float64(0.98), 'valley_ratio': 0.16}}); wrong document, wrong page, or too-degraded capture"
+ },
+ "scores": {}
+}

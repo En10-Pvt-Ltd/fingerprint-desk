@@ -1,0 +1,19 @@
+{
+ "line_acc": 0.933,
+ "word_acc": 1.0,
+ "erasures": 7,
+ "payload_ok": 64,
+ "payload_tot": 64,
+ "deskew_deg": -1.7,
+ "line_ok": 14,
+ "line_tot": 15,
+ "word_ok": 348,
+ "word_tot": 348,
+ "gate": "GO",
+ "aborted": false,
+ "variant": "harsh",
+ "doc": "marked",
+ "label": "simulated channel",
+ "entry_id": "decode_harsh_marked",
+ "image": "ch_harsh_marked.jpg"
+}

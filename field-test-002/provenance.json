@@ -1,0 +1,115 @@
+{
+ "pack": "field-test-002",
+ "what": "Physical revalidation (Stage 2 M3) of formatting-preserving PDF line-shift fingerprinting: real print, hand-held phone photo, one real WhatsApp hop.",
+ "date": "2026-07-13",
+ "operator": "repository owner (printing, photography, WhatsApp hop); decoding and scoring fully automated by the archived code",
+ "carrier": {
+  "name": "line-shift only",
+  "detail": "The pdf_lineshift carrier moves selected text baselines by +/-0.48 pt (2 px at 300 dpi). All reported marks, including the 14/14 read, are line-shift triplet bits. Word-shift does not exist in this carrier."
+ },
+ "whatsapp_chain": {
+  "operator_statement": "every capture in captures/ was sent through one WhatsApp hop as a normal photo before being saved",
+  "topology": "PENDING OPERATOR ATTESTATION: device-to-device or send-to-self (fill in and re-run make_provenance.py)",
+  "mode": "normal photo send (compressed), not document mode, per operator statement"
+ },
+ "commands": [
+  "python app/tools/m3_kit.py            # built print PDFs + metas (seeds v1=7001, v2=7002)",
+  "# print at 100% scale, photograph hand-held, one WhatsApp hop (operator)",
+  "python app/m3_check.py                # first scoring run",
+  "python app/m3_check.py --identify     # name-agnostic sheet identification after mix-up suspicion",
+  "# capture files renamed to true sheet identities, confirmed by operator against sheet back labels;",
+  "#   foreign photo (a different document) quarantined to foreign/",
+  "python app/m3_check.py                # gate run after renames: PASSED",
+  "# doc01 control captured by operator, then final run:",
+  "python app/m3_check.py                # final: control 4/14, 9/14 (chance); gate PASSED",
+  "python field-test-002/make_decodes.py # regenerates decodes/ from this pack",
+  "python field-test-002/pixel_diff.py   # regenerates pixel-diff/ evidence"
+ ],
+ "thresholds": {
+  "attribution_p": {
+   "value": 0.001,
+   "correction": "Bonferroni x n_variants",
+   "min_bits": 10,
+   "set": "BEFORE any physical capture existed (app scan rule, 2026-07-12; reused unchanged by scan_pdf and m3_check)"
+  },
+  "gate_true_variant_accuracy": {
+   "value": 0.9,
+   "set": "BEFORE captures (m3_check.py authored with the kit)"
+  },
+  "gate_control_band": {
+   "value": [
+    0.35,
+    0.65
+   ],
+   "set": "BEFORE captures (m3_check.py authored with the kit)"
+  },
+  "guided_segmentation_quality": {
+   "value": 0.9,
+   "set": "BEFORE the foreign photo was first decoded"
+  },
+  "guided_scale_band_and_valley_contrast": {
+   "value": {
+    "scale_ratio": [
+     0.7,
+     1.35
+    ],
+    "valley_ratio_max": 0.55
+   },
+   "set": "AFTER observing that the foreign photo passed the quality-only check. HONEST DISCLOSURE: the foreign-document REJECTION in the final identify run rests partly on these post-hoc validity checks. Attribution soundness does NOT rest on them: in the run where the foreign photo WAS segmented, it scored at chance against every variant and produced no attribution under the pre-set p threshold above. Segmentation validity is a usability filter, not the accusation gate."
+  }
+ },
+ "sheet_custody": {
+  "issue": "printed sheets are visually identical by design; the operator's initial file naming was rotated for doc01 and one photographed sheet was a different document entirely",
+  "resolution": "decoder-side identification (--identify: layout match + per-variant binomial p), then operator confirmation against the pencil labels on sheet backs; files renamed accordingly; the foreign photo is preserved in foreign/",
+  "renames": [
+   "doc01_times11__v2__p0.jpeg  -> doc01_times11__v1__p0.jpeg",
+   "doc01_times11__v2__p1.jpeg  -> doc01_times11__v1__p1.jpeg",
+   "doc01_times11__ctrl__p0.jpeg -> doc01_times11__v2__p0.jpeg",
+   "doc01_times11__v1__p0.jpeg  -> foreign/travelwithme_report_photo.jpeg"
+  ]
+ },
+ "result_summary": {
+  "doc01_times11": "true-variant aggregate 37/41 = 0.902; page-1 reads 14/14 (p 6.1e-5) and 13/14 (p 9.2e-4); own control 4/14 and 9/14 (chance)",
+  "control_aggregate": "29/54 = 0.537 (chance band 0.35-0.65)",
+  "doc02_helv_headings": "did NOT validate (one segmentation near-miss, one chance-level self-read); gate requires one passing document class",
+  "verdict": "M3 GATE PASSED on doc01_times11"
+ },
+ "scope": "Two marked copies plus controls, one printer, one phone, one WhatsApp hop, two document classes. National-scale guarantees rest on the analytic tier table and the planned corpus campaign, not on this field test.",
+ "code_fingerprints_sha256": {
+  "app/engine/pdf_mark.py": "4247b439aff581a46bf679b06f6609afc08ecdebaca1245d00a4294214389337",
+  "app/engine/pdf_scan.py": "c95442ccccb73e5236869ce95f3bf49fe9090e1bf2fa149cef9c9edddb803fb8",
+  "app/m3_check.py": "b6285e38879ff6b28d9347ffea812f89066b347b0d63f25c453a004d05e31252",
+  "app/tools/m3_kit.py": "3962d1a5301c4b2001259e32a62359305e2321cd29725e063acb53d1a88ae180",
+  "field-test-002/make_decodes.py": "0159ec146ea598e0120c8dc887418ed9f5abe6caae4a0c706213ccfb1b6f4eb5",
+  "field-test-002/pixel_diff.py": "7bdca24f9b4e0c04a05bd230f67b9bb28263a744b7405fde34114362c00b037c"
+ },
+ "file_fingerprints_sha256": {
+  "captures/doc01_times11__ctrl__p0.jpeg": "ecec72403f605907407bc9a9ec546f641eb669c347e0580d0b08b9304f4bbd2a",
+  "captures/doc01_times11__v1__p0.jpeg": "7d22773032eece01e869593ff82a01cf7057ae65147e878f81e3527737e7a90c",
+  "captures/doc01_times11__v1__p1.jpeg": "104aae62b395a3b0c7050cd6a33fa14d239ec5aca1863e31568fa54a808488b5",
+  "captures/doc01_times11__v2__p0.jpeg": "2611ae1829310b1cd631e62d1f24d721c9b38beebef7592bd6edf3bb0ddac588",
+  "captures/doc02_helv_headings__ctrl__p0.jpeg": "836665dd8c617b7f061956c06206a68318e77e203854bea15a9c60628e2c5a5c",
+  "captures/doc02_helv_headings__v1__p0.jpeg": "707eae1efaf5067b2c8b4b26f5e79cfd074bd9c86b00439185587b53871b6f94",
+  "captures/doc02_helv_headings__v2__p0.jpeg": "b59d618041386a53b54e4fac934e7bf2f7567e2659e95c9e07f6c8e8c68dc68b",
+  "foreign/travelwithme_report_photo.jpeg": "e4e0a28a60838c22156424e12490c45a3d446a96f0929a49b3907768f0ef374b",
+  "print/doc01_times11__control.pdf": "5ade848c76591553584157035993c306f2a4a2cc7d327c72b85f6f5fcdf9fd54",
+  "print/doc01_times11__v1.pdf": "a5511437fa67d05e792aa1d7cf79121b8b551f482972431f036013c428bc7a54",
+  "print/doc01_times11__v2.pdf": "a0ec32f9d1aa22207b627d3f98c385b78797b188a2ee66e6bc17ff5a37eba476",
+  "print/doc02_helv_headings__control.pdf": "dd280c76f1b8d156b5ea140af2f46a77163d4a2575f5eba486dd7f706530d191",
+  "print/doc02_helv_headings__v1.pdf": "59574ba82ab6dbb4b0cd9d3e9f19dbdee08c7aa2d3b8900dfdfbbc49583fd03d",
+  "print/doc02_helv_headings__v2.pdf": "fd7200d52e46c3a973549aba43baa6cb3c93d5b93190e0d07637d4c6153d9d78",
+  "metas/doc01_times11__v1.json": "b62ef2ab1ffaf489e7205be6ef43759c9478aa81f7423b991c9f5140fceaf12e",
+  "metas/doc01_times11__v2.json": "5af09a6b1e815fcc0bccf5f2f4001af2cbb130616c1dba03130cc3807d958aae",
+  "metas/doc02_helv_headings__v1.json": "ee366973d689cb0deb0353a1eee0a45c46a96e185527a798945c4fb8ee4cd68e",
+  "metas/doc02_helv_headings__v2.json": "f03845275f293967fd0d77d9340ed08008a658955dc2860ac427961b7cdb406d",
+  "decodes/doc01_times11__ctrl__p0.decode.json": "1a17d3f7f95268f49f4b380fdd396997f3b03e6c29eec93c9c2065bd6944bcc9",
+  "decodes/doc01_times11__v1__p0.decode.json": "500fb74203013a170ed5a394eaaf9e24b70d27c0a28b9239ea18653e17ff448e",
+  "decodes/doc01_times11__v1__p1.decode.json": "401e077d1f73d8bb23c4ac76117489d7fc5c4afaae33c7fd87a5ec4c728362ca",
+  "decodes/doc01_times11__v2__p0.decode.json": "b76b844f772d25cbcc20fedbc730fa4b2c4ade511b63595439ee6caf4c62664a",
+  "decodes/doc02_helv_headings__ctrl__p0.decode.json": "34fb7033d73205ddd4968d67bc6902ba9b633e4766c36e1e36c4a57f0639c51e",
+  "decodes/doc02_helv_headings__v1__p0.decode.json": "c2b3364a404d86222db8f2861ec111b8d5ad8d0d72bc7fcb5d9cde3e9d2af30b",
+  "decodes/doc02_helv_headings__v2__p0.decode.json": "c9f5c263138d4a75f3274fa44119422b7dfd7d0d08be9f870fe92beee51695c7",
+  "pixel-diff/diff_doc02_v1.png": "f1f62ee85a1fd11653753228f80156724c57fbf5b7cebdb6b7f6a2313e72e994",
+  "pixel-diff/diff_stats.json": "c56aa9f46db85080f1fc9e82846bb693e00bf4cef3f6a29548a310778121fe78"
+ }
+}

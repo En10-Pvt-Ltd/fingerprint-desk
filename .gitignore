@@ -1,0 +1,38 @@
+__pycache__/
+*.pyc
+
+# local Claude Code settings and machine-created skill links
+.claude/settings.local.json
+.claude/skills/
+sim300/out*/
+.env
+.DS_Store
+Thumbs.db
+
+# local demo captures (generated from a campaign, not part of it)
+demo_photos/
+
+# runtime app database (created at deploy time)
+appdata/app.db
+appdata/app.db-shm
+appdata/app.db-wal
+
+# volunteer-pack GROUND TRUTH (sheet->role mappings, metas): private by
+# design — publishing it defeats the blind protocol. Public print sheets
+# live in demo/packs/ as zips.
+appdata/volunteer_packs/
+
+# runtime uploads and corpus exports (created at deploy time)
+appdata/uploads/
+appdata/exports/
+
+# derived pack test dirs (materialized on demand from volunteer_packs
+# private metas) and their captures
+appdata/tests/pack-*/
+
+# campaign data provisioned at runtime on this machine (large / personal)
+appdata/tests/neet-2018-physics-print-photograph-test-b36e/
+appdata/tests/niraj-kasar-resume-2025-1-3bc5/
+
+# sim300 run logs
+sim300/*.log

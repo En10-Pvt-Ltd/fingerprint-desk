@@ -1,0 +1,34 @@
+{
+ "marked": {
+  "deskew_deg": -1.15,
+  "line_ok": 14,
+  "line_tot": 15,
+  "line_acc": 0.933,
+  "word_ok": 0,
+  "word_tot": 0,
+  "word_acc": null,
+  "erasures": 355,
+  "payload_ok": 0,
+  "payload_tot": 0,
+  "gate": "GO",
+  "aborted": false,
+  "source_image": "received.jpeg"
+ },
+ "control": {
+  "deskew_deg": 0.2,
+  "line_ok": 4,
+  "line_tot": 13,
+  "line_acc": 0.308,
+  "word_ok": 6,
+  "word_tot": 9,
+  "word_acc": 0.667,
+  "erasures": 346,
+  "payload_ok": 6,
+  "payload_tot": 9,
+  "gate": "NO-GO",
+  "aborted": false,
+  "source_image": "control_received.jpeg"
+ },
+ "label": "real capture (single dry-run print)",
+ "note": "One physical dry-run print, photographed hand-held, one WhatsApp hop, full-page framing. Word-shift sits below the resolution floor at this framing; line-shift is the surviving carrier."
+}

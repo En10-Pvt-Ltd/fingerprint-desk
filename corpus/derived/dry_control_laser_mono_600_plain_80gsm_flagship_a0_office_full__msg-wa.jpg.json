@@ -1,0 +1,26 @@
+{
+  "capture_id": "dry_control_laser_mono_600_plain_80gsm_flagship_a0_office_full",
+  "doc_id": "dry_control",
+  "variant": null,
+  "seed": null,
+  "marked": false,
+  "printer": "laser_mono_600",
+  "stock": "plain_80gsm",
+  "phone": "flagship",
+  "angle_deg": 0,
+  "lighting": "office",
+  "lux_est": null,
+  "framing": "full",
+  "screen_reshoot": false,
+  "applied_chain": "wa",
+  "cleanup": "none",
+  "synthetic": false,
+  "parent": "dry_control_laser_mono_600_plain_80gsm_flagship_a0_office_full.jpeg",
+  "timestamp": "2026-07-03T15:54:24.961811",
+  "steps": [
+    [
+      1600,
+      78
+    ]
+  ]
+}

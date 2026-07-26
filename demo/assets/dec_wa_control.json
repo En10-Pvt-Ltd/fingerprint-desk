@@ -1,0 +1,19 @@
+{
+ "line_acc": 0.467,
+ "word_acc": 0.499,
+ "erasures": 0,
+ "payload_ok": 31,
+ "payload_tot": 64,
+ "deskew_deg": -0.6,
+ "line_ok": 7,
+ "line_tot": 15,
+ "word_ok": 177,
+ "word_tot": 355,
+ "gate": "NO-GO",
+ "aborted": false,
+ "variant": "wa",
+ "doc": "control",
+ "label": "simulated channel",
+ "entry_id": "decode_wa_control",
+ "image": "ch_wa_control.jpg"
+}

@@ -1,0 +1,60 @@
+# Normalize line endings for text; git decides per-file.
+* text=auto
+
+# ============================================================================
+# Public-export policy (git archive / scripts/make-public-export.sh)
+# Everything below stays in the PRIVATE development archive but is dropped
+# from the clean public export. Grouped by reason.
+# ============================================================================
+
+# --- runtime / generated app data (not source) -----------------------------
+# appdata/m1/corpus IS kept: the app self-test (and CI) reads a fixture PDF.
+appdata/tests/            export-ignore
+appdata/m3/               export-ignore
+appdata/uploads/          export-ignore
+appdata/exports/          export-ignore
+appdata/volunteer_packs/  export-ignore
+
+# --- local tooling / AI scaffolding (not project source) --------------------
+# CLAUDE.md may hold private development notes; the rest is local config.
+.agents/          export-ignore
+.mcp.json         export-ignore
+skills-lock.json  export-ignore
+CLAUDE.md         export-ignore
+
+# --- regenerable smoke-test OUTPUTS (clutter) -------------------------------
+# The real-capture fixtures received.jpeg / control_received.jpeg /
+# meta.json / control_meta.json are KEPT — the CI self-test reads them and
+# they are the project's own validation evidence (its own rendered page).
+# NOTE: leading slash anchors these to the repo ROOT — a bare "marked.png"
+# would also match demo/assets/marked.png (a needed demo asset).
+/marked.png                    export-ignore
+/captured.jpg                  export-ignore
+/control.png                   export-ignore
+/control_captured.jpg          export-ignore
+/received_cropped.jpg          export-ignore
+/received_norm.jpg             export-ignore
+/control_received_cropped.jpg  export-ignore
+
+# --- THIRD-PARTY COPYRIGHTED exam papers (must NOT be published) ------------
+# NEET (NTA) and CBSE Accountancy papers and everything derived from them.
+# Republish field-test evidence only on documents the project owns.
+field-test-003-neet-raster/                 export-ignore
+field-test-004-accountancy/                 export-ignore
+docs/neet-2018-question-paper-code-ZZ.pdf   export-ignore
+docs/neet-2018-physics-section.txt          export-ignore
+
+# --- stray sandbox output leftover ------------------------------------------
+mnt/              export-ignore
+
+# --- internal dev log ------------------------------------------------------
+# Build log full of references to the excluded field-test evidence; not
+# public-facing documentation.
+PROGRESS.md       export-ignore
+
+# --- academic drafts: held back until after submission ----------------------
+# The drafts carry the novel claims a provisional would cover (publishing
+# them IS the disclosure event), double-blind review can be complicated by a
+# public authored draft, and they predate the corpus so their validation
+# status is already stale. Publish after submission, not in v0.1.0.
+paper/            export-ignore

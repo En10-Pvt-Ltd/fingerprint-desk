@@ -1,0 +1,502 @@
+<!-- SPDX-License-Identifier: Apache-2.0 -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Who Leaked the Paper? A Forensic Fingerprinting Demonstration</title>
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<nav class="topnav" aria-label="Site">
+  <div class="topnav-inner">
+    <a class="brand" href="#act1"><span class="brand-mark" aria-hidden="true"></span>
+      Who Leaked the Paper?</a>
+    <div class="links">
+      <a href="#problem">Problem</a>
+      <a href="#act2">Fingerprint</a>
+      <a href="#act3">The Leak</a>
+      <a href="#act4">Guarantee</a>
+      <a href="#act5">Beyond</a>
+      <a href="#methodology">Methods</a>
+    </div>
+    <a class="btn" href="volunteer.html">Volunteer</a>
+  </div>
+</nav>
+
+<header class="hero shell" id="act1">
+  <div class="hero-grid">
+    <div>
+      <p class="kicker">Technical demonstration. The case shown is fictional.</p>
+      <h1>Who leaked the paper?</h1>
+      <p class="lede">
+        Invisible, per-copy fingerprints in the printed page itself, so that a
+        phone photograph of a leaked exam identifies which copy it came from,
+        with a provable bound on the risk of accusing the wrong person.
+      </p>
+      <div class="hero-ctas">
+        <a class="btn" href="#act2">See the invisible fingerprint</a>
+        <a class="btn btn-ghost" href="volunteer.html">Join the field test</a>
+      </div>
+    </div>
+    <div>
+      <div class="exhibit" role="img"
+           aria-label="Stylized document whose middle line of text shifts subtly while a scan beam sweeps across it">
+        <div class="docline mid"></div>
+        <div class="docline"></div>
+        <div class="docline shifty"></div>
+        <div class="docline"></div>
+        <div class="docline mid"></div>
+        <div class="docline short"></div>
+        <div class="docline"></div>
+        <div class="docline shifty"></div>
+        <div class="docline"></div>
+        <div class="docline short"></div>
+        <div class="scanbeam"></div>
+        <div class="stamp">exhibit &middot; marked copy</div>
+      </div>
+      <p class="exhibit-cap">the shift, exaggerated a thousandfold for the eye</p>
+    </div>
+  </div>
+
+  <div class="statband" aria-label="Headline figures, regenerated at build time">
+    <div class="stat-cell">
+      <span class="stat-num"><span data-num="real_marked_line_acc" data-fmt="acc3"></span></span>
+      <span class="stat-lbl">real print &rarr; phone &rarr; WhatsApp decode</span>
+    </div>
+    <div class="stat-cell">
+      <span class="stat-num"><span data-num="const_line_shift_px"></span>&hairsp;px</span>
+      <span class="stat-lbl">the invisible line shift</span>
+    </div>
+    <div class="stat-cell">
+      <span class="stat-num"><span data-num="budget_total" data-fmt="sci"></span></span>
+      <span class="stat-lbl">false-accusation budget per exam</span>
+    </div>
+    <div class="stat-cell">
+      <span class="stat-num"><span data-num="tier_n" data-fmt="int"></span></span>
+      <span class="stat-lbl">copies the guarantee covers</span>
+    </div>
+  </div>
+</header>
+
+<main>
+
+<section id="problem">
+  <h2>Act 1 &middot; The problem, and the answer</h2>
+  <div class="split">
+    <div class="panel problem-panel">
+      <p class="panel-tag">the leak plays out</p>
+      <h3>Seals record that a packet was opened. They cannot say who
+        pressed the shutter.</h3>
+      <p>
+        In 2024, question papers for India's NEET medical entrance exam
+        circulated before exam day. Investigators reported that an accomplice
+        was let into a control room, opened the trunk holding the papers,
+        photographed a paper, resealed the trunk and left. The pattern in
+        paper leaks is consistent: someone with legitimate custody opens the
+        packet, photographs a page with a phone, and messaging apps carry it
+        from one handset to thousands in hours.
+      </p>
+      <ol class="chain">
+        <li><strong>Custody.</strong> A sealed packet reaches a fictional exam
+          centre, Centre 0417, the night before the exam.</li>
+        <li><strong>The photograph.</strong> A custodian photographs one page,
+          hand-held, under office light.</li>
+        <li><strong>The spread.</strong> WhatsApp recompresses and resends the
+          photo. By morning the original phone no longer matters.</li>
+      </ol>
+    </div>
+    <div class="panel solution-panel">
+      <p class="panel-tag">the page fights back</p>
+      <h3>If every copy is invisibly different, the photograph itself names
+        its source.</h3>
+      <p>
+        Once a paper is out, it cannot be un-leaked. So the goal here is
+        different: make photographing a paper stop being anonymous. Each
+        printed copy carries its own secret pattern of hair-width geometry
+        shifts; the leaked photo, even after WhatsApp mangles it, still
+        reads back the pattern of the one copy it came from.
+      </p>
+      <p>
+        It helps investigators, and, more importantly, it deters. And the
+        accusation it produces is not a hunch: it arrives with a provable
+        cap on the chance of ever blaming the wrong copy. That is what this
+        page demonstrates, end to end, using the real pipeline outputs
+        regenerated at build time.
+      </p>
+    </div>
+  </div>
+</section>
+
+<section id="act2">
+  <h2>Act 2 &middot; The invisible fingerprint</h2>
+  <p>
+    Below are two full pages rendered by the encoder: one carries a
+    fingerprint, one is an unmarked control. The fingerprint lives in
+    geometry, not pixels or watermark patterns: selected word gaps are
+    widened or narrowed by <span data-num="const_word_shift_px"></span>
+    pixels (a hundredth of an inch at
+    <span data-num="const_dpi"></span> dpi), and the middle line of each
+    three-line group is raised or lowered by
+    <span data-num="const_line_shift_px"></span> pixels. Each copy gets its
+    own pattern of shifts: its codeword. Color printers already hide
+    invisible tracking dots on every page; this is the same instinct, but
+    built to survive a bad phone photo and a trip through WhatsApp, and
+    designed so a group of leakers cannot rub it out by comparing copies.
+  </p>
+
+  <figure class="compare" id="compare">
+    <div class="compare-stage">
+      <img src="assets/control_web.png" alt="Unmarked control page, full view">
+      <div class="compare-top">
+        <img src="assets/marked_web.png" alt="Fingerprinted page, full view. Identical to the eye.">
+      </div>
+      <div class="compare-handle"></div>
+    </div>
+    <input type="range" min="0" max="100" value="50"
+           aria-label="Reveal slider between marked and unmarked page">
+    <figcaption>
+      <span class="tag tag-left">marked</span>
+      Drag the handle. The two pages are identical to the eye.
+      <span class="tag tag-right">unmarked control</span>
+    </figcaption>
+  </figure>
+
+  <div class="zoomrow">
+    <figure>
+      <div class="zoombox"><img src="assets/zoom_marked.png"
+        alt="Magnified crop of the fingerprinted page showing shifted word gaps and a shifted baseline"></div>
+      <figcaption>Marked page under magnification</figcaption>
+    </figure>
+    <figure>
+      <div class="zoombox"><img src="assets/zoom_control.png"
+        alt="Magnified crop of the unmarked control page at the same position"></div>
+      <figcaption>Control page, same position</figcaption>
+    </figure>
+    <figure>
+      <div class="zoombox"><img src="assets/diff_map.png"
+        alt="Pixel difference map between marked and control renders; gold marks where they differ"></div>
+      <figcaption>Where the two renders differ (gold), computed pixelwise
+        at build time</figcaption>
+    </figure>
+  </div>
+</section>
+
+<section id="act3">
+  <h2>Act 3 &middot; The leak, live</h2>
+  <p>
+    Now the marked page takes the leak journey: rotation, blur, WhatsApp-grade
+    downscaling and JPEG recompression. Every image and every number below is
+    a real output of the repository pipeline, regenerated at build time. The
+    journey shown in this gallery is a <strong>simulated channel</strong>
+    (the repository's channel simulator); the physical print-and-photograph
+    result follows it.
+  </p>
+
+  <div class="gallery">
+    <div class="tabs" role="tablist" id="channel-tabs"></div>
+    <div class="gallery-body">
+      <figure class="gallery-img">
+        <img id="gallery-image" src="assets/ch_wa_marked.jpg"
+             alt="Marked page after the selected simulated channel">
+        <figcaption id="gallery-caption" class="labelline"></figcaption>
+      </figure>
+      <div class="decode-panel" id="decode-panel"></div>
+    </div>
+  </div>
+
+  <div class="realcap">
+    <h3>The physical test: a real print, a real phone, a real WhatsApp hop</h3>
+    <p class="labelline"><span class="tag tag-real">real capture
+      (single dry-run print)</span></p>
+    <p>
+      The marked page was printed on a mono laser, photographed hand-held,
+      and sent through one real WhatsApp hop. The blind decoder read the
+      line-shift carrier at
+      <strong><span data-real="marked" data-field="line_frac"></span> =
+      <span data-num="real_marked_line_acc" data-fmt="acc3"></span></strong>
+      raw bit accuracy, clearing the smoke-test GO gate (line-shift at or
+      above <span data-num="go_line_thresh" data-fmt="acc2"></span>). At
+      full-page framing the word-shift carrier sat below the resolution
+      floor (<span data-num="real_marked_erasures"></span> erasures), so
+      line-shift carried the result. One print, one capture: the physical
+      channel preserves the geometry.
+    </p>
+    <div class="realgrid">
+      <figure>
+        <img src="assets/real_received_web.jpg"
+             alt="Real WhatsApp capture of the printed marked page, real capture (single dry-run print)">
+        <figcaption>The received WhatsApp file,
+          decoded blind</figcaption>
+      </figure>
+      <div class="scorecard" id="real-marked-card"></div>
+    </div>
+  </div>
+
+  <div class="controlcheck">
+    <h3>The credibility check: the decoder cannot see what is not there</h3>
+    <p>
+      Run the same decoder on an <strong>unmarked</strong> page and it must
+      read noise, near the chance level of
+      <span data-num="chance_level" data-fmt="acc1"></span>. If it scored
+      high on a blank control, it would be reading layout, not evidence,
+      and every other number here would be meaningless. Both controls pass:
+    </p>
+    <div class="ctrlgrid">
+      <div class="scorecard" id="ctrl-sim-card"></div>
+      <div class="scorecard" id="ctrl-real-card"></div>
+    </div>
+  </div>
+
+  <aside class="honesty">
+    <p>
+      Read the two results separately. The payload recovery shown in the
+      gallery above comes from the <strong>simulated</strong> channel. The
+      real capture proves the physical channel preserves line-shift
+      geometry; it did not recover the demonstration payload (word-shift was
+      erased at full-page framing) and it does not by itself clear any
+      accusation tier. At this smoke-test scale the page carries only
+      <span data-num="page_line_bits"></span> line symbols, so the tier
+      arithmetic reads "no guarantee" no matter how accurate the decode;
+      deployment uses payloads thousands of symbols long. The guarantee
+      story, at deployment scale, is Act 4. One more twist from the channel
+      analysis: when a leaker crops out a single question to look casual,
+      the crop travels at higher effective resolution than a full-page
+      photo, so the fragment the leaker prefers to send is not the
+      decoder's hardest case.
+    </p>
+  </aside>
+</section>
+
+<section id="act4">
+  <h2>Act 4 &middot; The guarantee</h2>
+  <p>
+    Attribution is only useful if it cannot smear the innocent. The system
+    is engineered backwards from that requirement.
+  </p>
+
+  <div class="cards">
+    <article class="card">
+      <h3>A one-in-a-million budget</h3>
+      <p>
+        The total probability of ever accusing an uninvolved copy is capped
+        at <span data-num="budget_total" data-fmt="sci"></span> per exam,
+        split evenly between the two accusation paths
+        (<span data-num="budget_split" data-fmt="sci"></span> each), across
+        all <span data-num="tier_n" data-fmt="int"></span> copies and every
+        fragment examined. False accusation is a budget, not a hope: no
+        control page may ever cross the courtroom threshold, and the
+        benchmark build fails if one does.
+      </p>
+    </article>
+
+    <article class="card card-wide">
+      <h3>What a fragment can prove</h3>
+      <p>
+        Evidence scales with how much marked text the leak contains, and it
+        comes graded, never as one headline number: a full paper supports a
+        courtroom-strength identification even against a coalition, a page
+        supports a strong claim against a small one, a single question
+        points reliably at one source but cannot untangle a gang. The
+        deliberate asymmetry runs through everything: better to miss a
+        guilty party than to brand an innocent one. The table gives the
+        largest symbol-error rate the channel may inflict while a fragment
+        of each size still clears the courtroom budget, under the corrected
+        hard-decision (flip) semantics.
+      </p>
+      <p>
+        The c column is the coalition size. A gang holding several copies
+        cannot average the marks out of sheets of paper; without scanning,
+        registering and reprinting, it can only splice: this page from one
+        copy, that question from another. Every spliced piece still names
+        the single copy it came from, and the coalition bound remains
+        underneath as the safety net for anything genuinely mixed.
+      </p>
+      <div id="tier-table"></div>
+      <details class="fixnote">
+        <summary>The corrected factor, shown</summary>
+        <p>
+          Earlier tables used the erasure factor (1 - p) for a channel that
+          flips symbols. A flipped symbol does not just fail to help, it
+          votes against the truth, so the correct factor is (1 - 2p). The
+          table above is computed with the corrected factor; the code that
+          enforces it:
+        </p>
+        <pre id="fix-source"></pre>
+      </details>
+    </article>
+
+    <article class="card card-wide" id="eprocess-card">
+      <h3>Evidence that climbs as fragments drip out</h3>
+      <p class="labelline"><span class="tag tag-mc">Monte Carlo simulation
+        of the accusation statistic</span></p>
+      <p>
+        Leaks rarely arrive as one clean page; they drip: a question today,
+        a page next week. There is a trap here. If you ask "is this copy
+        guilty yet?" after every new piece and keep asking, you will
+        eventually accuse someone by chance, the way flipping enough coins
+        eventually shows ten heads in a row. The fix is an anytime-valid
+        e-process: a running evidence score built so you may check it after
+        every fragment, forever, without ever inflating the false-accusation
+        rate. A guilty copy's score climbs as its fragments arrive and it is
+        accused the moment the score crosses the bar; an innocent copy's
+        score essentially never gets near it, no matter how long you watch.
+      </p>
+      <p>
+        In the build-time Monte Carlo run recorded in provenance,
+        <span data-num="ep_selftest_innocent_n" data-fmt="grp"></span>
+        innocent drip sequences never crossed the accusation bar (highest
+        innocent score
+        <span data-num="ep_selftest_max_innocent" data-fmt="sci2"></span>
+        against a bar of <span data-num="ep_bar" data-fmt="sci"></span>),
+        while guilty drips at a hostile
+        <span data-num="ep_flip_p" data-fmt="pct0"></span> symbol-flip rate
+        were caught <span data-num="ep_detected_pct" data-fmt="int"></span>
+        percent of the time, at a median of
+        <span data-num="ep_median_symbols"></span> symbols: one to two
+        questions' worth of leaked text. The trajectories below replay the
+        same statistic on fixed-seed drips.
+      </p>
+      <canvas id="eprocess-canvas" width="900" height="380"
+              aria-label="E-process evidence trajectories, Monte Carlo simulation of the accusation statistic"></canvas>
+      <p class="pending" id="eprocess-pending" hidden>
+        E-process asset not built yet (stage0/eprocess.py pending). Re-run
+        make_demo_assets.py once it is supplied.
+      </p>
+    </article>
+
+    <article class="card">
+      <h3>The sealed codebook</h3>
+      <p>
+        There is an obvious objection to any secret code: how does a court
+        know the authority did not invent it after seeing the leak, to frame
+        a particular centre? The answer: before a single page is printed,
+        the mapping from copies to codewords is sealed under a timestamped
+        cryptographic commitment, an envelope that reveals nothing but
+        cannot be swapped later. When a leak surfaces, the envelope is
+        opened in front of the parties, and anyone can check that what was
+        revealed matches what was sealed before the exam, then redo the
+        accusation arithmetic themselves. The accusation is not "trust us";
+        it is evidence a third party can verify.
+      </p>
+    </article>
+
+    <article class="card card-wide">
+      <h3>How evidence grows with what the leak reveals</h3>
+      <p>
+        The same inequality behind the table, swept over the number of
+        observed symbols: more marked text in the leak, stronger the bound.
+        Computed at build time from the repository's metrics code.
+      </p>
+      <div id="evidence-curve"></div>
+    </article>
+  </div>
+</section>
+
+<section id="act5">
+  <h2>Act 5 &middot; Beyond exams</h2>
+  <p>
+    The primitive is not exam-specific: any printed or per-recipient
+    rendered page whose copies can differ can testify about its own leak,
+    from the point in the custody chain where copies become distinct
+    onward. These settings are gentler than the exam case in exactly the
+    two ways that matter to the math: captures are cleaner (office scans
+    and flatbeds instead of a rushed phone photo, so the symbol-error rate
+    sits far below the table's tolerances), and each copy goes to a named
+    recipient, so the plausible coalition is small and captures are
+    typically at the c = 1 or c = 2 rows. No new machinery is claimed on
+    any card; every figure is a row of the same corrected table.
+  </p>
+  <div class="tabs" role="tablist" id="industry-tabs"></div>
+  <div class="card card-wide industry" id="industry-card"></div>
+</section>
+
+<section id="methodology">
+  <h2>Methodology and limits</h2>
+  <div class="method-grid">
+    <div>
+      <h3>Where every number comes from</h3>
+      <p>
+        Every figure on this page is produced by the repository code at
+        build time by <code>make_demo_assets.py</code> and logged, with the
+        exact command that produced it, in
+        <a href="assets/provenance.json">provenance.json</a>. Nothing is
+        hand-edited. Results carry one of three labels:
+      </p>
+      <ul>
+        <li><span class="tag">simulated channel</span> outputs of the
+          repository's channel simulator. The Act 3 gallery is simulated.</li>
+        <li><span class="tag tag-real">real capture (single dry-run
+          print)</span> the one physical print, photographed and sent
+          through a real WhatsApp hop, plus its unmarked control.</li>
+        <li><span class="tag tag-mc">Monte Carlo simulation of the
+          accusation statistic</span> the Act 4 e-process trajectories.</li>
+      </ul>
+      <p>
+        Validation status, plainly: the physical dry run cleared the
+        smoke-test GO gate on line-shift
+        (<span data-num="real_marked_line_acc" data-fmt="acc3"></span>, real
+        control at chance), on one print at full-page framing. Corpus-scale
+        validation on real captures (many prints, phones, lightings,
+        framings) is pending; until it lands, treat the simulated-channel
+        gallery as a demonstration of decoder logic, not as field
+        performance.
+      </p>
+    </div>
+    <div>
+      <h3>What this cannot do</h3>
+      <ul class="limits">
+        <li><strong>Retyping defeats any watermark.</strong> If the leaker
+          transcribes the questions instead of photographing the page, the
+          geometry is gone. The defense is speed and friction, not magic.</li>
+        <li><strong>Pre-differentiation leaks are invisible.</strong> A leak
+          from the press, or from any stage before copies are
+          differentiated, carries no copy-specific fingerprint at all.</li>
+        <li><strong>Single small fragments are investigative leads, not
+          courtroom proof.</strong> A lone question's worth of text supports
+          a lead; courtroom-tier accusations need the larger fragment scales
+          in the Act 4 table.</li>
+        <li><strong>Very small, tightly spaced text carries the mark
+          poorly.</strong> The line carrier needs regular body text; in
+          later bench tests, documents with line spacing under roughly
+          12 points lost segmentation through the messaging channel, so
+          such regions are excluded from marking rather than marked
+          unreliably.</li>
+      </ul>
+      <p>
+        The demonstration case, Centre 0417, is fictional, as are all
+        names, centres and documents on this page. No real person or
+        institution is referenced or accused.
+      </p>
+    </div>
+  </div>
+</section>
+
+<section id="volunteer-cta">
+  <div class="volcta">
+    <h2>Help take this from lab to field</h2>
+    <p>
+      The simulated numbers above verify decoder logic; the claim that
+      matters must be earned on real printers and real phones, at scale.
+      That corpus is being crowdsourced right now. You need a printer, a
+      phone, WhatsApp, and about a quarter of an hour: print three test
+      sheets, photograph them, send the photos through WhatsApp, upload
+      both versions. Every capture becomes part of an open research
+      benchmark.
+    </p>
+    <a class="btn" href="volunteer.html">Become a volunteer</a>
+  </div>
+</section>
+
+</main>
+
+<footer>
+  <p>Forensic document fingerprinting research demo. All numbers regenerated
+     by <code>make_demo_assets.py</code>; see
+     <a href="assets/provenance.json">provenance.json</a>.</p>
+</footer>
+
+<script src="app.js"></script>
+</body>
+</html>

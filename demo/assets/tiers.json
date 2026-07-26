@@ -1,0 +1,48 @@
+{
+ "label": "analytic (metrics.py)",
+ "n": 5000,
+ "budget": 5e-07,
+ "total_budget": 1e-06,
+ "ledger_split": 5e-07,
+ "rows": [
+  {
+   "name": "full paper",
+   "c": 5,
+   "k": 8000,
+   "flip_0.5": 0.22070474199762546,
+   "flip_0.9": 0.16443810252121288,
+   "erasure_0.5": 0.44140948399525093,
+   "erasure_0.9": 0.32887620504242576
+  },
+  {
+   "name": "single page",
+   "c": 2,
+   "k": 1000,
+   "flip_0.5": 0.18401348658123934,
+   "flip_0.9": 0.12035505085587928,
+   "erasure_0.5": 0.3680269731624787,
+   "erasure_0.9": 0.24071010171175855
+  },
+  {
+   "name": "single question (c=1)",
+   "c": 1,
+   "k": 200,
+   "flip_0.5": 0.1467163380112509,
+   "flip_0.9": 0.07554404319964775,
+   "erasure_0.5": 0.2934326760225018,
+   "erasure_0.9": 0.1510880863992955
+  },
+  {
+   "name": "single question (c=2)",
+   "c": 2,
+   "k": 200,
+   "flip_0.5": -0.20656732397749822,
+   "flip_0.9": -0.3489119136007045,
+   "erasure_0.5": -0.41313464795499644,
+   "erasure_0.9": -0.697823827201409
+  }
+ ],
+ "markdown": "# Forensic Tier Table (Tardos-fallback cells)\n\nLargest tolerable symbol-error rate `pmax` that still clears the courtroom tier, by region scale, under each p-semantics and detection power. These are the **Tardos-fallback** cells (coalition drift `(2/pi)*f(p)*sqrt(k)/c`), distinct from the Stage 0 c-independent single-source table in `stage0-soundness.md` (drift `d_tau=0.8627`).\n\nParameters: `n = 5000`, courtroom `budget = 5e-07` (Stage 0 ledger split of the 1e-6 courtroom allocation), `Qinv(budget/n)` in the inequality.\n\n`flip` factor `(1-2p)` is the hard-decision floor; `erasure` factor `(1-p)` applies only if unreadable symbols are truly dropped. `soft` (the production mode) has no scalar p-factor and is not tabulated here because pmax is p-independent by construction. `infeasible` = budget unreachable even at zero error.\n\n| Region scale | c | k | flip \u03b2=0.5 | flip \u03b2=0.9 | erasure \u03b2=0.5 | erasure \u03b2=0.9 |\n|---|---|---|---|---|---|---|\n| full paper | 5 | 8000 | 0.221 | 0.164 | 0.441 | 0.329 |\n| single page | 2 | 1000 | 0.184 | 0.120 | 0.368 | 0.241 |\n| single question (c=1) | 1 | 200 | 0.147 | 0.076 | 0.293 | 0.151 |\n| single question (c=2) | 2 | 200 | infeasible | infeasible | infeasible | infeasible |\n",
+ "correction_source": "def drift_factor(p, p_semantics):\n    \"\"\"Scalar f(p) multiplying the interleaving drift. See the module header\n    for why erasure=(1-p), flip=(1-2p), soft=1 (reliability already in k).\"\"\"\n    if p_semantics == \"erasure\":\n        return 1.0 - p\n    if p_semantics == \"flip\":\n        return 1.0 - 2.0 * p            # caller guards p >= 0.5 (no positive drift)\n    if p_semantics == \"soft\":\n        return 1.0                      # no p-factor; k = k_eff carries reliability\n    raise ValueError(f\"p_semantics must be one of {P_SEMANTICS}, \"\n                     f\"got {p_semantics!r}\")\n",
+ "correction_note": "The v0.2/v0.3 cells used the erasure factor (1 - p) on a flip channel. The corrected hard-decision factor is (1 - 2p): a flipped symbol costs a lost vote plus an adverse vote. See stage0/stage0-soundness.md Section 4 and metrics.py drift_factor()."
+}

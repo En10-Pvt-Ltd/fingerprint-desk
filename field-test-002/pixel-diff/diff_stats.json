@@ -1,0 +1,87 @@
+{
+ "document": "doc02_helv_headings__v1.pdf",
+ "page": 0,
+ "image_px": [
+  2480,
+  3509
+ ],
+ "total_pixels": 8702320,
+ "changed_pixels": 141680,
+ "changed_fraction": 0.016281,
+ "marked_lines": 14,
+ "changed_pixels_outside_marked_rows": 0,
+ "containment": true,
+ "claim": "every changed pixel lies within a marked line's own row span",
+ "marked_line_details": [
+  {
+   "y_px300": 534.17,
+   "bit": 1,
+   "text_head": "through physical seals and human testimo"
+  },
+  {
+   "y_px300": 709.17,
+   "bit": 1,
+   "text_head": "who photographed the contents once opene"
+  },
+  {
+   "y_px300": 1018.33,
+   "bit": 1,
+   "text_head": "that any leaked photograph identifies th"
+  },
+  {
+   "y_px300": 1193.33,
+   "bit": 1,
+   "text_head": "camera and social media recompression be"
+  },
+  {
+   "y_px300": 1368.33,
+   "bit": 1,
+   "text_head": "preserves enough of that geometry to be "
+  },
+  {
+   "y_px300": 1560.83,
+   "bit": 1,
+   "text_head": "before any further investment in code de"
+  },
+  {
+   "y_px300": 1735.83,
+   "bit": 0,
+   "text_head": "fact through physical seals and human te"
+  },
+  {
+   "y_px300": 1910.83,
+   "bit": 1,
+   "text_head": "not who photographed the contents once o"
+  },
+  {
+   "y_px300": 2103.33,
+   "bit": 1,
+   "text_head": "evidentiary basis from testimony to sign"
+  },
+  {
+   "y_px300": 2278.33,
+   "bit": 0,
+   "text_head": "with a provable bound on the probability"
+  },
+  {
+   "y_px300": 2453.33,
+   "bit": 0,
+   "text_head": "carried by low frequency geometry rather"
+  },
+  {
+   "y_px300": 2645.83,
+   "bit": 0,
+   "text_head": "channel preserves enough of that geometr"
+  },
+  {
+   "y_px300": 2820.83,
+   "bit": 0,
+   "text_head": "learned carriers the standard model of e"
+  },
+  {
+   "y_px300": 2995.83,
+   "bit": 0,
+   "text_head": "this assumption fails precisely when the"
+  }
+ ]
+}

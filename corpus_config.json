@@ -1,0 +1,15 @@
+{
+  "_comment": "Rig-parameterized corpus config. Spec v0.3 Section 3 targets 3 printers x 2 stocks; the current rig is 1-2 printers and multiple phones, so printers/stocks list only what is on hand. Extend these lists as the rig grows; intake.py validates against them. Printer and stock are recorded at capture time, NOT baked into the document PNG.",
+  "printers": ["laser_mono_600"],
+  "printers_spec_target": ["laser_mono_600", "color_laser", "inkjet"],
+  "stocks": ["plain_80gsm"],
+  "stocks_spec_target": ["plain_80gsm", "bright_white_100gsm"],
+  "phones": ["budget", "mid", "flagship"],
+  "angles": [0, 15, 30, 45],
+  "lighting": ["office", "dim_tube", "flash_glare", "window_backlight"],
+  "framings": ["full", "half", "single-question", "single-paragraph"],
+  "framing_to_c": {"full": 5, "half": 2, "single-question": 1, "single-paragraph": 1},
+  "messaging_chains": ["none", "wa", "wa_x2", "tg", "wa_then_tg"],
+  "ai_cleanup": ["none", "realesrgan_4x", "sd_img2img_02", "sd_img2img_04", "camscanner"],
+  "scoring": {"n": 5000, "budget": 5e-7, "betas": [0.5, 0.9]}
+}

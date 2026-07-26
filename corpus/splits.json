@@ -1,0 +1,23 @@
+{
+  "tuning": [
+    "v1",
+    "v2",
+    "v3"
+  ],
+  "report": [
+    "v4",
+    "v5",
+    "ctrl1",
+    "ctrl2",
+    "ctrl3",
+    "ctrl4",
+    "ctrl5",
+    "dry_marked",
+    "dry_control"
+  ],
+  "_note": "variants 1-3 tuning, 4-5 + all controls report; no physical page shared across splits. dry_* are dry-run placeholders, remove before the real campaign.",
+  "dry_run_docs": [
+    "dry_marked",
+    "dry_control"
+  ]
+}

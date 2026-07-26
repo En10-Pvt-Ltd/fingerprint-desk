@@ -1,0 +1,19 @@
+{
+ "line_acc": 0.4,
+ "word_acc": 0.513,
+ "erasures": 0,
+ "payload_ok": 34,
+ "payload_tot": 64,
+ "deskew_deg": -0.0,
+ "line_ok": 6,
+ "line_tot": 15,
+ "word_ok": 182,
+ "word_tot": 355,
+ "gate": "NO-GO",
+ "aborted": false,
+ "variant": "clean",
+ "doc": "control",
+ "label": "simulated channel",
+ "entry_id": "decode_clean_control",
+ "image": "control.png"
+}

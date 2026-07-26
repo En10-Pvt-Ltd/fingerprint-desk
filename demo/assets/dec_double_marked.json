@@ -1,0 +1,19 @@
+{
+ "line_acc": 1.0,
+ "word_acc": 1.0,
+ "erasures": 0,
+ "payload_ok": 64,
+ "payload_tot": 64,
+ "deskew_deg": -1.1,
+ "line_ok": 15,
+ "line_tot": 15,
+ "word_ok": 355,
+ "word_tot": 355,
+ "gate": "GO",
+ "aborted": false,
+ "variant": "double",
+ "doc": "marked",
+ "label": "simulated channel",
+ "entry_id": "decode_double_marked",
+ "image": "ch_double_marked.jpg"
+}

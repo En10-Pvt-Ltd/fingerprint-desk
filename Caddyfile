@@ -1,0 +1,10 @@
+# SPDX-License-Identifier: Apache-2.0
+# Automatic HTTPS via Let's Encrypt for $DOMAIN (set in .env).
+# For local smoke tests DOMAIN=localhost serves a self-signed cert.
+{$DOMAIN} {
+	reverse_proxy app:8765
+	encode gzip
+	request_body {
+		max_size 25MB
+	}
+}

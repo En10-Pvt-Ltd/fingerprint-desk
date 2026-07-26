@@ -1,0 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
+# Plain static site: no build step, publish this folder as-is.
+[build]
+  publish = "."

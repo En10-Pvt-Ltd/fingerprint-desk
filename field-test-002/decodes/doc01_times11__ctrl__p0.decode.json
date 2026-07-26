@@ -1,0 +1,30 @@
+{
+ "capture": "doc01_times11__ctrl__p0.jpeg",
+ "labeled_as": {
+  "doc": "doc01_times11",
+  "sheet": "ctrl",
+  "page": 0
+ },
+ "carrier": "line-shift (the pdf_lineshift carrier has no word-shift)",
+ "observation": {
+  "ok": true,
+  "path": "robust+crop1.autocorr",
+  "deskew_deg": -0.0,
+  "n_lines_found": 44,
+  "reason": null
+ },
+ "scores": {
+  "v1": {
+   "line_ok": 4,
+   "line_tot": 14,
+   "line_acc": 0.286,
+   "binomial_p_one_sided": 0.9713134765625
+  },
+  "v2": {
+   "line_ok": 9,
+   "line_tot": 14,
+   "line_acc": 0.643,
+   "binomial_p_one_sided": 0.21197509765625
+  }
+ }
+}

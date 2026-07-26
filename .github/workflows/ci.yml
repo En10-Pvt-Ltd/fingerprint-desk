@@ -1,0 +1,42 @@
+# SPDX-License-Identifier: Apache-2.0
+name: ci
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  gates:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      FF_FONT_PATH: /usr/share/fonts/truetype/liberation/LiberationSerif-Regular.ttf
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: System deps (fonts for the encoder, GL for OpenCV)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends fonts-liberation libgl1 libglib2.0-0
+
+      - name: Python deps
+        run: pip install -r requirements.txt -r app/requirements.txt
+
+      - name: Metrics self-tests (spec worked cells)
+        run: |
+          python test_metrics.py
+          python metrics.py
+
+      - name: App end-to-end selftest (46 checks)
+        run: python app/selftest.py
+
+      - name: Demo-site verification gate
+        run: python check_site.py
+
+      - name: Submission-scoring selftest (wild-corpus pipeline)
+        run: python app/tools/score_submissions.py --selftest

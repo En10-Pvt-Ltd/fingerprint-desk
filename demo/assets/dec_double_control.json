@@ -1,0 +1,19 @@
+{
+ "line_acc": 0.533,
+ "word_acc": 0.546,
+ "erasures": 0,
+ "payload_ok": 36,
+ "payload_tot": 64,
+ "deskew_deg": -1.1,
+ "line_ok": 8,
+ "line_tot": 15,
+ "word_ok": 194,
+ "word_tot": 355,
+ "gate": "NO-GO",
+ "aborted": false,
+ "variant": "double",
+ "doc": "control",
+ "label": "simulated channel",
+ "entry_id": "decode_double_control",
+ "image": "ch_double_control.jpg"
+}

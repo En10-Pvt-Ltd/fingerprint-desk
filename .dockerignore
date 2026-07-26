@@ -1,0 +1,11 @@
+.git
+data
+appdata/tests
+appdata/uploads
+appdata/exports
+__pycache__
+**/__pycache__
+mnt
+demo-verification
+*.pyc
+.env

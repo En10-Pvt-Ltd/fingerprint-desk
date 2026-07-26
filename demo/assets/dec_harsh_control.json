@@ -1,0 +1,19 @@
+{
+ "line_acc": 0.467,
+ "word_acc": 0.518,
+ "erasures": 0,
+ "payload_ok": 35,
+ "payload_tot": 64,
+ "deskew_deg": -1.7,
+ "line_ok": 7,
+ "line_tot": 15,
+ "word_ok": 184,
+ "word_tot": 355,
+ "gate": "NO-GO",
+ "aborted": false,
+ "variant": "harsh",
+ "doc": "control",
+ "label": "simulated channel",
+ "entry_id": "decode_harsh_control",
+ "image": "ch_harsh_control.jpg"
+}
