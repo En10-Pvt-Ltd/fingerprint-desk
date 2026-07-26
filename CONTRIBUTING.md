@@ -59,6 +59,15 @@ Windows, so `setrlimit` is silently skipped). A change can therefore be green lo
 red on the Linux CI runner. Trust the GitHub Actions result; when in doubt, reproduce in a
 Linux container (`docker run … python:3.11-slim`).
 
+**The cold-clone path is authoritative for onboarding.** Whenever you change the quick
+start, `.env.example`, the `Caddyfile`, or the auth/sign-in flow, re-run it from scratch:
+in a throwaway directory, `git clone` the public repo, follow the README quick start
+*exactly as written* with no prior knowledge, and confirm a stranger can reach the app and
+complete one generate-and-decode loop. Both onboarding blockers this project has hit came
+from testing in an environment that already had our assumptions (env vars, a running app,
+installed deps) baked in — a fresh clone is the only way to see what a newcomer actually
+gets.
+
 CI (`.github/workflows/ci.yml`) runs the metrics self-tests, the app self-test, the
 demo-site verification, and the submission-scoring self-test on every push and PR.
 

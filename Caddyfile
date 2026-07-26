@@ -1,7 +1,10 @@
 # SPDX-License-Identifier: Apache-2.0
-# Automatic HTTPS via Let's Encrypt for $DOMAIN (set in .env).
-# For local smoke tests DOMAIN=localhost serves a self-signed cert.
-{$DOMAIN} {
+# Caddy serves the app at BASE_URL (set in .env). The scheme in BASE_URL
+# decides TLS: a real domain (https://fp.example.org) gets automatic HTTPS
+# via Let's Encrypt; http://localhost is served as plain HTTP for local
+# evaluation — no certificate, no http->https redirect, so a browser shows
+# no security warning.
+{$BASE_URL} {
 	reverse_proxy app:8765
 	encode gzip
 	request_body {

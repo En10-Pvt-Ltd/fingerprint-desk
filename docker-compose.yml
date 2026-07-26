@@ -21,7 +21,9 @@ services:
     restart: unless-stopped
     ports: ["80:80", "443:443"]
     environment:
-      DOMAIN: ${DOMAIN:-localhost}
+      # Caddy serves at BASE_URL; its scheme selects plain HTTP (localhost)
+      # vs automatic HTTPS (a real https:// domain). See Caddyfile.
+      BASE_URL: ${BASE_URL:-http://localhost}
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy_data:/data
