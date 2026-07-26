@@ -70,13 +70,47 @@ will be published here with the raw corpus.
 ```bash
 git clone https://github.com/En10-Pvt-Ltd/fingerprint-desk
 cd fingerprint-desk
-cp .env.example .env        # set SECRET_KEY (openssl rand -hex 32) and BASE_URL
+cp .env.example .env        # then set SECRET_KEY:  openssl rand -hex 32
 docker compose up -d
 ```
 
-Open http://localhost — the bundled Caddy reverse proxy serves the app and handles HTTPS
-automatically for a public `DOMAIN`. (Running the server directly without Docker,
-`python app/serve.py`, serves on http://localhost:8765.)
+The `.env.example` defaults are for **local evaluation** (`DOMAIN=localhost`,
+`BASE_URL=http://localhost`). Once the containers are up, open **http://localhost** — the
+bundled Caddy reverse proxy serves the app. (Running the server directly without Docker,
+`python app/serve.py`, serves it on http://localhost:8765.)
+
+### Try it locally (no Google account)
+
+Sign-in on a public deployment uses Google OAuth, but for a local look there is a built-in
+dev sign-in:
+
+1. In `.env`, **uncomment `FF_DEV_LOGIN=1`** and set `ADMIN_EMAILS=` to any email you want to
+   use. Then apply the change — re-running `up -d` alone does **not** pick up `.env` edits:
+   ```bash
+   docker compose up -d --force-recreate
+   ```
+2. Open **http://localhost**, click **Start a test**, and sign in with that email.
+3. Press **No PDF handy? Use our sample text**, then **Create the marked copies**. You now
+   have several invisibly-different copies to download and print.
+
+### See a real decode in two minutes (no printer)
+
+You don't need to print anything to watch the decoder work. The repo ships a real phone
+photo of a marked page; decode it inside the running container:
+
+```bash
+docker compose exec app python robust_decode/run_robust.py --img received.jpeg --meta meta.json
+```
+
+It reports the recovered line-shift bit accuracy from that real capture (about 14/15) and
+prints a GO / NO-GO line — proof the pipeline reads a genuine phone photo end to end.
+
+### Deploying publicly
+
+Set `DOMAIN` and `BASE_URL` to your real domain (Caddy gets HTTPS automatically) and
+configure Google OAuth (`GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET`). An https `BASE_URL`
+or a set `GOOGLE_CLIENT_ID` automatically disables the dev sign-in, so it can never be live
+in production.
 
 Not a developer? See [docs/for-schools.md](docs/for-schools.md) for a no-terminal guide.
 
