@@ -1,5 +1,7 @@
 # Fingerprint Desk
 
+[![CI](https://github.com/En10-Pvt-Ltd/fingerprint-desk/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/En10-Pvt-Ltd/fingerprint-desk/actions/workflows/ci.yml)
+
 **Trace a leaked document photo back to the exact copy it came from.**
 
 Every printed copy carries the same visible text but a different invisible pattern of
@@ -25,7 +27,8 @@ Most document watermarking is either visible (and therefore croppable), digital-
 therefore destroyed by printing), or offers a bare match/no-match with no error rate.
 
 - **Reads from an ordinary phone photo.** No scanner, no UV light, no special ink.
-- **Survives the real channel.** Print, photograph at an angle, WhatsApp recompression.
+- **Built for the real channel.** Print, phone photograph, WhatsApp recompression. What has
+  actually been confirmed on real captures, and what has not, is in Validation status below.
 - **Ships a false-accusation bound, not a guess.** Attribution requires a Bonferroni
   corrected binomial p-value at or below 1e-3, a minimum symbol count, and a margin over
   the runner-up. Otherwise the answer is an honest "no attribution", which is treated as a
