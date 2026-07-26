@@ -1,6 +1,6 @@
 # Fingerprint Desk
 
-[![CI](https://github.com/En10-Pvt-Ltd/fingerprint-desk/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/En10-Pvt-Ltd/fingerprint-desk/actions/workflows/ci.yml)
+[![CI](https://github.com/En10-Pvt-Ltd/fingerprint-desk/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/En10-Pvt-Ltd/fingerprint-desk/actions/workflows/ci.yml) [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.21588529.svg)](https://doi.org/10.5281/zenodo.21588529)
 
 **Trace a leaked document photo back to the exact copy it came from.**
 
@@ -129,10 +129,12 @@ If you use this in research:
 
 ```bibtex
 @software{fingerprint_desk,
-  title  = {Fingerprint Desk: Forensic fingerprinting for printed documents},
-  author = {Niraj Vijay Kasar},
-  year   = {2026},
-  url    = {https://github.com/En10-Pvt-Ltd/fingerprint-desk}
+  title     = {Fingerprint Desk: Forensic fingerprinting for printed documents},
+  author    = {Kasar, Niraj Vijay},
+  year      = {2026},
+  publisher = {Zenodo},
+  doi       = {10.5281/zenodo.21588529},
+  url       = {https://doi.org/10.5281/zenodo.21588529}
 }
 ```
 
