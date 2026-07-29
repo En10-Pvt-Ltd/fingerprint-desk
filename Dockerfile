@@ -3,14 +3,15 @@
 # in-process job queue want exactly one worker.
 FROM python:3.12-slim
 
-# fonts-dejavu-core: the encoder requires a serif TTF (DejaVuSerif).
-# libgl1/libglib2.0-0: opencv-python runtime deps on slim images.
+# libgl1/libglib2.0-0: opencv-python runtime deps on slim images. No system
+# font is installed: the encoder uses the bundled Liberation Serif under
+# assets/fonts/ (copied in below), so every deployment renders identical
+# geometry regardless of host.
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    fonts-dejavu-core libgl1 libglib2.0-0 \
+    libgl1 libglib2.0-0 \
     && rm -rf /var/lib/apt/lists/*
 
-ENV FF_FONT_PATH=/usr/share/fonts/truetype/dejavu/DejaVuSerif.ttf \
-    FF_APPDATA=/data/appdata \
+ENV FF_APPDATA=/data/appdata \
     HOST=0.0.0.0 \
     PORT=8765 \
     PYTHONUNBUFFERED=1
