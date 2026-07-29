@@ -113,6 +113,7 @@ def generate_test(name, text, variant_labels, n_controls, sample_used=False,
                      "marked": marked, "pages": page_records})
         doc_metas[doc_id] = metas
 
+    cb = codebook_commitment(test_id, doc_metas)
     manifest = {
         "test_id": test_id, "name": name, "created_utc": store.now_utc(),
         "status": "generated", "sample_used": bool(sample_used),
@@ -120,8 +121,13 @@ def generate_test(name, text, variant_labels, n_controls, sample_used=False,
         "content_words": len(words), "n_pages": len(pages),
         "docs": docs,
         "commitment": {
+            "version": 2,
             "algo": "sha256(canonical-json of all page metas)",
-            "sha256": codebook_commitment(test_id, doc_metas),
+            "codebook_sha256": cb,
+            "sha256": cb,          # deprecated pre-v2 alias (same digest)
+            "seal": "codebook",    # generation seals the codebook (pre-
+                                   # distribution); the who-received-which
+                                   # mapping is sealed later in the recovery key
             "committed_utc": store.now_utc(),
         },
     }

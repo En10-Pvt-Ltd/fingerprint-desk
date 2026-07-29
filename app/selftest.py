@@ -274,6 +274,41 @@ ok(_server_refuses([_Srv([_Sock("8.8.8.8")])]),
 ok(not _server_refuses([_Srv([_Sock("127.0.0.1")])]),
    "genuine loopback bind -> server serves")
 
+print("[0g] commitment v2: keyed who-received-which mapping "
+      "(reproducible + tamper-evident)")
+from engine import commitment as _cm          # noqa: E402
+import hashlib as _hl                          # noqa: E402
+import json as _js                             # noqa: E402
+
+# canonical_assignments: stable identity, sorted by doc_id, case/space
+# normalised, and independent of the input order.
+_shuf = [("v2", "  Bob@X.COM ", "t2"), ("v10", "c@x.com", "t3"),
+         ("v1", "alice@x.com", "t1")]
+_ca = _cm.canonical_assignments(_shuf)
+ok([e["doc_id"] for e in _ca] == ["v1", "v10", "v2"],
+   "canonical_assignments sorts by doc_id (fixed list order)")
+ok(_ca[2]["recipient"] == "bob@x.com", "recipient normalised (trim + lowercase)")
+ok(_cm.canonical_assignments(list(reversed(_shuf))) == _ca,
+   "canonical_assignments is independent of input order")
+
+# keyed_commitment: reproducible from the documented rule by an INDEPENDENT
+# recompute (the third-party contract), and it binds both the mapping and seal.
+_cb = "a" * 64
+_k = _cm.keyed_commitment("mid-a", _cb, _ca, _cm.SEAL_SNAPSHOT)
+_indep = _hl.sha256(_js.dumps(
+    {"commitment_version": 2, "test_id": "mid-a", "codebook_sha256": _cb,
+     "assignments": _ca, "mapping_seal": "snapshot"},
+    sort_keys=True, separators=(",", ":")).encode("utf-8")).hexdigest()
+ok(_k == _indep, "keyed digest reproducible by an independent recompute")
+ok(_cm.keyed_commitment("mid-a", _cb, _ca, _cm.SEAL_PREDISTRIBUTION) != _k,
+   "seal kind is bound: snapshot digest != pre-distribution digest")
+_tam = [dict(e) for e in _ca]
+_tam[0]["recipient"] = "mallory@x.com"
+ok(_cm.keyed_commitment("mid-a", _cb, _tam, _cm.SEAL_SNAPSHOT) != _k,
+   "altering one recipient changes the keyed digest (tamper-evident)")
+ok(_cm.keyed_commitment("mid-a", "b" * 64, _ca, _cm.SEAL_SNAPSHOT) != _k,
+   "keyed digest binds the codebook anchor (different codebook -> different)")
+
 print("[1] layout preview")
 r = client.post("/api/layout", json={"content": render.SAMPLE_TEXT})
 ok(r.status_code == 200, "layout 200")
@@ -310,6 +345,22 @@ ok(r.status_code == 400, "6 variants -> 400 (non-admin cap is 5)")
 print("[3] commitment verify")
 v = client.get(f"/api/tests/{tid}/verify").json()
 ok(v["match"], "recomputed commitment matches sealed digest")
+ok(v["commitment_version"] == 2 and v["seal"] == "codebook",
+   "verify reports v2 codebook seal",
+   f"v={v['commitment_version']} seal={v['seal']}")
+ok(m["commitment"]["codebook_sha256"] == m["commitment"]["sha256"],
+   "v2 codebook_sha256 equals the deprecated sha256 alias (digest unchanged)")
+# Backward compat: a pre-v2 manifest (only sha256, no version/seal) must still
+# verify and be reported as version 1.
+_leg = store.load_manifest(tid)
+_leg["commitment"] = {"algo": _leg["commitment"]["algo"],
+                      "sha256": _leg["commitment"]["sha256"],
+                      "committed_utc": _leg["commitment"]["committed_utc"]}
+store.save_manifest(_leg)
+vleg = client.get(f"/api/tests/{tid}/verify").json()
+ok(vleg["match"] and vleg["commitment_version"] == 1 and vleg["seal"] == "codebook",
+   "legacy pre-v2 commitment still verifies, reported as version 1")
+store.save_manifest(m)   # restore the v2 manifest
 
 print("[4] simulated WhatsApp leak from Variant 2 (v2), page 1")
 r = client.post(f"/api/tests/{tid}/simulate",
@@ -977,6 +1028,23 @@ ok({d1, d2, d3} == {"v1", "v2", "v3"},
 r4 = c4.post(f"/api/campaigns/{atid}/join")
 ok(r4.status_code == 409 and "full" in r4.json()["detail"],
    "fourth join -> 409 campaign is full")
+
+# assignment_rows -> the who-received-which mapping keyed by portable email
+# (never the local user_id), the input to the recovery key's keyed commitment.
+arows = db.assignment_rows(atid)
+ok(len(arows) == 3 and all("user_id" not in r for r in arows)
+   and {r["doc_id"] for r in arows} == {"v1", "v2", "v3"},
+   "assignment_rows: 3 recipients, doc_ids only, no local user_id",
+   str([(r["doc_id"], r["email"]) for r in arows]))
+ok({r["email"] for r in arows} == {"contrib1@selftest.local",
+   "contrib2@selftest.local", "contrib3@selftest.local"},
+   "assignment_rows exposes recipient emails (portable identity)")
+_acb = store.load_manifest(atid)["commitment"]["codebook_sha256"]
+_aca = _cm.canonical_assignments([(r["doc_id"], r["email"], r["assigned_utc"])
+                                  for r in arows])
+_ak = _cm.keyed_commitment(atid, _acb, _aca, _cm.SEAL_SNAPSHOT)
+ok(len(_ak) == 64 and _ak != _acb,
+   "keyed commitment over the live mapping differs from the codebook digest")
 
 m1_ = c1.get(f"/api/tests/{atid}").json()
 ok(m1_["my_assignment"] == d1

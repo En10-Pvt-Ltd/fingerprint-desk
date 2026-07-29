@@ -692,10 +692,18 @@ def verify(test_id: str, user=Depends(require_user)):
         recomputed = render_pdf.recompute_commitment(m)
     else:
         recomputed = render.recompute_commitment(m)
-    stored = m["commitment"]["sha256"]
-    return {"stored": stored, "recomputed": recomputed,
+    c = m["commitment"]
+    # v2 manifests carry codebook_sha256; pre-v2 ones only sha256. Report the
+    # seal version/kind so an investigator can tell WHAT was sealed: a codebook
+    # seal proves which mark each copy carries, but says nothing about who
+    # received which copy (that mapping is bound by the recovery key's keyed
+    # commitment, not here).
+    stored = c.get("codebook_sha256") or c["sha256"]
+    return {"commitment_version": c.get("version", 1),
+            "seal": c.get("seal", "codebook"),
+            "stored": stored, "recomputed": recomputed,
             "match": recomputed == stored,
-            "committed_utc": m["commitment"]["committed_utc"]}
+            "committed_utc": c["committed_utc"]}
 
 
 @app.get("/api/tests/{test_id}/pdf/{doc_id}")

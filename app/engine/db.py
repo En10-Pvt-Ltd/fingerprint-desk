@@ -344,6 +344,19 @@ def count_assignments(test_id):
     return r["n"]
 
 
+def assignment_rows(test_id):
+    """The who-received-which mapping joined to each recipient's STABLE identity
+    (email + display name), ordered by doc_id. For the recovery key and its
+    keyed commitment. The local users.id is deliberately omitted: it is
+    installation-specific and would make an off-box digest unreproducible; the
+    email is the portable identity a third party can check."""
+    rows = conn().execute(
+        "SELECT a.doc_id, u.email, u.name, a.assigned_utc"
+        " FROM assignments a JOIN users u ON u.id = a.user_id"
+        " WHERE a.test_id=? ORDER BY a.doc_id", (test_id,)).fetchall()
+    return [dict(r) for r in rows]
+
+
 def funnel_counts(test_id):
     """Campaign funnel over assigned contributors: how many joined, how many
     of those uploaded at least one real photo, and how their feedback split."""

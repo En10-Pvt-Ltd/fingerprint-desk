@@ -77,6 +77,7 @@ def generate_pdf_test(name, pdf_bytes, variant_labels, n_controls,
                      "pdf_sha256": pdf_hashes[doc_id]})
         doc_metas[doc_id] = meta
 
+    _cb = codebook_commitment(test_id, doc_metas, pdf_hashes)
     manifest = {
         "test_id": test_id, "name": name, "created_utc": store.now_utc(),
         "status": "generated", "type": "pdf_preserved",
@@ -85,9 +86,14 @@ def generate_pdf_test(name, pdf_bytes, variant_labels, n_controls,
         "n_pages": doc_metas["v1"]["n_pages"],
         "docs": docs,
         "commitment": {
+            "version": 2,
             "algo": "sha256(canonical-json of all doc metas + variant "
                     "pdf hashes)",
-            "sha256": codebook_commitment(test_id, doc_metas, pdf_hashes),
+            "codebook_sha256": _cb,
+            "sha256": _cb,         # deprecated pre-v2 alias (same digest)
+            "seal": "codebook",    # generation seals the codebook (pre-
+                                   # distribution); the who-received-which
+                                   # mapping is sealed later in the recovery key
             "committed_utc": store.now_utc(),
         },
     }

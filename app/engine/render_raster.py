@@ -78,6 +78,7 @@ def generate_raster_test(name, pdf_bytes, variant_labels, n_controls,
             "identical to the source. This document does not fit this "
             "carrier — re-run the PDF analysis instead of forcing a mode.")
 
+    _cb = codebook_commitment(test_id, doc_metas, pdf_hashes)
     manifest = {
         "test_id": test_id, "name": name, "created_utc": store.now_utc(),
         "status": "generated", "type": carrier,
@@ -86,9 +87,14 @@ def generate_raster_test(name, pdf_bytes, variant_labels, n_controls,
         "n_pages": n_pages,
         "docs": docs,
         "commitment": {
+            "version": 2,
             "algo": "sha256(canonical-json of all doc metas + variant "
                     "pdf hashes)",
-            "sha256": codebook_commitment(test_id, doc_metas, pdf_hashes),
+            "codebook_sha256": _cb,
+            "sha256": _cb,         # deprecated pre-v2 alias (same digest)
+            "seal": "codebook",    # generation seals the codebook (pre-
+                                   # distribution); the who-received-which
+                                   # mapping is sealed later in the recovery key
             "committed_utc": store.now_utc(),
         },
     }
