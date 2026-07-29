@@ -42,8 +42,8 @@ os.environ["FF_QUOTA_TESTS_PER_DAY"] = "2"
 os.environ["FF_UPLOADS_PER_MIN"] = "100"
 os.environ["FF_LOGINS_PER_MIN"] = "5"      # small so the cap is testable
 os.environ["FF_PACK_MAX_CAPTURES"] = "3"   # small so the cap is testable
-os.environ.setdefault(
-    "FF_FONT_PATH", "/usr/share/fonts/truetype/dejavu/DejaVuSerif.ttf")
+# No FF_FONT_PATH: exercise the shipped default (bundled Liberation Serif under
+# assets/fonts/), so CI validates the exact font a fresh clone renders with.
 
 from fastapi.testclient import TestClient   # noqa: E402
 from serve import app, _assert_loopback     # noqa: E402

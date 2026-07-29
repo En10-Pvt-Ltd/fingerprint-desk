@@ -36,11 +36,16 @@ LINE_SHIFT = 2                        # +/- px, 1/150 inch at 300 dpi
 # (marked docs, unmarked controls, reprints) so the embedded geometry stays
 # self-consistent; the decoder is blind and reads meta written at render time,
 # but mixing fonts between a doc and its control would compare different layouts.
-# Times New Roman is the pinned face on Windows; the Linux container reference
-# is DejaVu Serif. Override per-run with --font or the FF_FONT_PATH env var only
-# for deliberate font experiments. A serif face matters: the decoder locates
-# baselines from character-bottom components and the shift amplitudes are 2-3 px.
-FONT_PATH = os.environ.get("FF_FONT_PATH", r"C:\Windows\Fonts\times.ttf")
+# The default face is Liberation Serif, bundled under assets/fonts/ (SIL OFL
+# 1.1), so a fresh clone renders identically on every OS with no font setup.
+# It is metric-compatible with Times New Roman. Override per-run with --font or
+# the FF_FONT_PATH env var for deliberate font experiments. A serif face
+# matters: the decoder locates baselines from character-bottom components and
+# the shift amplitudes are 2-3 px, which are geometric and font-independent.
+_HERE = os.path.dirname(os.path.abspath(__file__))
+BUNDLED_FONT = os.path.join(_HERE, "assets", "fonts",
+                            "LiberationSerif-Regular.ttf")
+FONT_PATH = os.environ.get("FF_FONT_PATH") or BUNDLED_FONT
 
 CORPUS = ("the standard model of examination security assumes that custody of "
 "printed material can be audited after the fact through physical seals and "
@@ -199,7 +204,7 @@ def main():
     ap.add_argument("--seed", type=int, default=42)
     ap.add_argument("--font", default=FONT_PATH,
                     help="path to a serif .ttf (default: $FF_FONT_PATH or the "
-                         "container DejaVu Serif path)")
+                         "bundled Liberation Serif under assets/fonts/)")
     ap.add_argument("--unmarked", action="store_true",
                     help="render the same layout with zero shifts (control doc)")
     args = ap.parse_args()

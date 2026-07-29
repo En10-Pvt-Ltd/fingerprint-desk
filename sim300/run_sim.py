@@ -29,7 +29,8 @@ Phases (combinable flags; running with no phase flag runs all four):
               per-capture inspection page sim300/out/report.html.
 
 Everything lives under sim300/out/ (gitignored). FF_APPDATA defaults to
-sim300/out/appdata; FF_FONT_PATH defaults to C:\\Windows\\Fonts\\times.ttf.
+sim300/out/appdata; the font defaults to the bundled Liberation Serif under
+assets/fonts/ (override with FF_FONT_PATH).
 
 Typical runs:
   python sim300/run_sim.py --limit 12            # smoke: all four phases
@@ -62,7 +63,8 @@ PERCAND = os.path.join(OUT, "percand.jsonl")
 CAPT_MANIFEST = os.path.join(OUT, "captures.jsonl")
 
 DEFAULT_PDF = os.path.join(REPO, "docs", "Niraj_Kasar_Resume_2025 (1).pdf")
-DEFAULT_FONT = r"C:\Windows\Fonts\times.ttf"
+DEFAULT_FONT = os.path.join(REPO, "assets", "fonts",
+                            "LiberationSerif-Regular.ttf")
 N_CONTROLS = 3
 
 ANGLES = [0, 15, 30, 45]

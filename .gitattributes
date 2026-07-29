@@ -1,6 +1,13 @@
 # Normalize line endings for text; git decides per-file.
 * text=auto
 
+# Bundled binary assets — never normalize (e.g. the Liberation Serif font).
+*.ttf binary
+
+# Windows batch launcher must stay CRLF (checkout AND public export), or
+# double-click goto/label handling breaks on some Windows versions.
+*.bat text eol=crlf
+
 # ============================================================================
 # Public-export policy (git archive / scripts/make-public-export.sh)
 # Everything below stays in the PRIVATE development archive but is dropped

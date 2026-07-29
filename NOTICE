@@ -2,3 +2,17 @@ Fingerprint Desk
 Copyright 2026 EN10 Private Limited
 
 Licensed under the Apache License, Version 2.0.
+
+--------------------------------------------------------------------------------
+This product bundles the Liberation Serif font (the default rendering face),
+under assets/fonts/LiberationSerif-Regular.ttf.
+
+  Liberation(tm) fonts
+  Copyright (c) 2012 Red Hat, Inc.
+  Digitized data copyright (c) 2010 Google Corporation.
+  Liberation is a trademark of Red Hat, Inc.
+
+  Licensed under the SIL Open Font License, Version 1.1. The full license text
+  and authors are bundled alongside the font as assets/fonts/OFL.txt and
+  assets/fonts/AUTHORS.txt. The OFL is not the Apache License above; it governs
+  only the bundled font files.

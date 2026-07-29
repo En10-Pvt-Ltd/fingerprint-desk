@@ -83,17 +83,23 @@ our sample text**, then **Create the marked copies**. Contributors get accounts 
 single-use invite links minted on the `/admin` page. The `.env.example` defaults
 (`DOMAIN=localhost`, `BASE_URL=http://localhost`) are for evaluating on your own machine.
 
-**Directly, without Docker (local mode — no accounts at all):**
+**Directly, without Docker (local mode — no accounts at all):** requires **Python 3.11 or
+newer**.
 
 ```bash
 pip install -r requirements.txt -r app/requirements.txt
 python app/serve.py         # -> http://localhost:8765
 ```
 
+On Windows you can instead **double-click `Start Fingerprint Desk.bat`** — it checks for
+Python 3.11+ (and links the installer if it is missing), installs dependencies on first
+run, starts the app in local mode, and opens it in your browser.
+
 With `FF_MODE` unset and the default loopback bind, the app runs in **local mode**: no
 sign-in, you are the single operator (with admin rights). Local mode refuses to serve on
 anything but loopback — to put the app on a network, set `FF_MODE=server` (Docker above
-does this for you).
+does this for you). Rendering uses the bundled Liberation Serif font, so no font setup is
+needed on any OS.
 
 ### See a real decode in two minutes (no printer)
 
