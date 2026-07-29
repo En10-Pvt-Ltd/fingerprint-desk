@@ -141,9 +141,11 @@ def _load_copies(test_id, m):
 
 
 def current_seal(test_id, m):
-    """The seal kind this campaign can honestly carry right now. Until a
-    pre-distribution roster exists (Phase 4), every mapping is a snapshot."""
-    return SEAL_SNAPSHOT
+    """The seal kind this campaign honestly carries. A roster/count campaign
+    fixed its who-received-which mapping at creation, before distribution, so
+    it seals pre_distribution. A join-assigned campaign binds recipients as
+    contributors claim copies over time, so it can only be a snapshot."""
+    return SEAL_PREDISTRIBUTION if db.is_roster(test_id) else SEAL_SNAPSHOT
 
 
 def _assemble(test_id, m):
@@ -162,9 +164,16 @@ def _assemble(test_id, m):
         # export a key that would not verify, rather than ship a broken one.
         raise ValueError("codebook digest does not match the sealed commitment; "
                          "campaign data may be corrupted -- not exporting")
-    rows = db.assignment_rows(test_id)
-    assignments = canonical_assignments(
-        [(r["doc_id"], r["email"], r["assigned_utc"]) for r in rows])
+    # Roster campaigns fix the mapping at creation (recipient = sealed identity);
+    # join campaigns bind it from claimed accounts (recipient = email). One code
+    # path builds the same canonical mapping from whichever source applies.
+    if db.is_roster(test_id):
+        entries = [(r["doc_id"], r["recipient"], r["assigned_utc"])
+                   for r in db.roster_recipients(test_id)]
+    else:
+        entries = [(r["doc_id"], r["email"], r["assigned_utc"])
+                   for r in db.assignment_rows(test_id)]
+    assignments = canonical_assignments(entries)
     seal = current_seal(test_id, m)
     keyed = keyed_commitment(test_id, codebook, assignments, seal)
     return copies, pdf_hashes, assignments, codebook, keyed, seal
@@ -177,6 +186,7 @@ def build_envelope(test_id, m, passphrase=None):
     commitment digests -- always stays cleartext, so identity and the digests
     remain checkable and escrowable without the passphrase."""
     copies, _pdf, assignments, codebook, keyed, seal = _assemble(test_id, m)
+    rinfo = db.roster_info(test_id)
     payload = {
         "test_id": test_id,
         "manifest": m,                 # the codebook index, verbatim
@@ -196,6 +206,11 @@ def build_envelope(test_id, m, passphrase=None):
         "n_marked": sum(1 for d in m["docs"] if d.get("marked")),
         "n_controls": sum(1 for d in m["docs"] if not d.get("marked")),
         "n_recipients": len(assignments),
+        # how the mapping was made: identity_scheme = email | label; roster_mode
+        # = roster | count | null. count binds a positional label whose link to
+        # a real centre is kept in the controller's OWN record, NOT sealed here.
+        "identity_scheme": rinfo["identity_scheme"],
+        "roster_mode": rinfo["roster_mode"],
         "commitment": {
             "codebook_sha256": codebook,
             "keyed_sha256": keyed,
@@ -361,6 +376,7 @@ def recovery_info(test_id, m):
     """Lightweight metadata for the export UI: seal kind in plain language,
     counts, and the digests -- without serving the ground-truth payload."""
     _c, _p, assignments, codebook, keyed, seal = _assemble(test_id, m)
+    rinfo = db.roster_info(test_id)
     return {
         "campaign_id": test_id,
         "campaign_label": m.get("name"),
@@ -370,6 +386,8 @@ def recovery_info(test_id, m):
         "n_recipients": len(assignments),
         "mapping_seal": seal,
         "seal_explain": SEAL_EXPLAIN[seal],
+        "identity_scheme": rinfo["identity_scheme"],
+        "roster_mode": rinfo["roster_mode"],
         "codebook_sha256": codebook,
         "keyed_sha256": keyed,
         "committed_utc": m["commitment"].get("committed_utc"),
@@ -382,10 +400,12 @@ def build_receipt(test_id, m):
     third party BEFORE distributing copies so an accusation is checkable
     without trusting the issuer. It contains no ground truth."""
     _c, _p, assignments, codebook, keyed, seal = _assemble(test_id, m)
+    rinfo = db.roster_info(test_id)
     seal_line = ("PRE-DISTRIBUTION (proves the mapping predates distribution)"
                  if seal == SEAL_PREDISTRIBUTION
                  else "SNAPSHOT (proves the mapping as it stood when this "
                       "receipt was made -- NOT that it predates distribution)")
+    count_caveat = (rinfo["roster_mode"] == "count")
     L = [
         "FINGERPRINT DESK - COMMITMENT RECEIPT",
         "=====================================",
@@ -411,6 +431,13 @@ def build_receipt(test_id, m):
         f"  {keyed}",
         "",
         f"MAPPING SEAL:   {seal_line}",
+    ] + ([
+        "",
+        "NOTE (count-mode roster): the sealed identities are GENERATED LABELS",
+        "(e.g. Centre-1, Centre-2). The link from each label to a real centre",
+        "was kept in the issuer's OWN record and is NOT covered by this",
+        "commitment. This receipt binds copy->label; label->centre is external.",
+    ] if count_caveat else []) + [
         "",
         "How to verify: recompute the codebook commitment from the recovery",
         "key's copy metadata using the recipe in " + SPEC_DOC + " and compare",

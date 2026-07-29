@@ -53,6 +53,26 @@ That is: object keys sorted recursively at every level, no insignificant whitesp
 list that must be reproducible is pre-sorted by the producer (see `assignments`). Reproduce
 this rule exactly and your digests will match byte-for-byte.
 
+### Recipient-identity normalisation (frozen)
+
+Each sealed recipient identity — an email or a roster/centre label — is normalised by one
+uniform rule before it enters the `assignments` list, so a third party reproduces the keyed
+digest off-box from the key alone:
+
+```
+normalize(recipient) = lowercase( collapse_whitespace( strip( NFC(recipient) ) ) )
+```
+
+Unicode NFC → strip leading/trailing whitespace → collapse every internal run of whitespace to
+a single space → lowercase. It is uniform on purpose: emails carry no internal whitespace and
+are already lower/trimmed, so every real email identity is left byte-identical (join-campaign
+digests are unchanged), while labels such as `"Centre  42 "` and `"centre 42"` normalise to the
+same `"centre 42"`. **This rule is frozen for format `version` 1.**
+
+The key header records how the mapping was made: `identity_scheme` (`"email"` | `"label"`) and
+`roster_mode` (`"roster"` | `"count"` | `null`). Neither is needed to reproduce the digest
+(the normalisation is uniform) — they tell an investigator how to read the identities.
+
 ## Commitments
 
 **Codebook commitment** (`commitment.codebook_sha256`) — binds *which mark each copy carries*:

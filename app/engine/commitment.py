@@ -7,10 +7,27 @@ public log; locally the timestamped manifest records it.)
 """
 import hashlib
 import json
+import unicodedata
 
 
 def canonical(obj):
     return json.dumps(obj, sort_keys=True, separators=(",", ":"))
+
+
+def normalize_recipient(s):
+    """FROZEN recipient-identity normalisation, applied uniformly to every
+    sealed identity -- an email OR a roster label. A third party reproduces a
+    keyed digest off-box using only this rule (see docs/recovery-key-format.md):
+
+        Unicode NFC -> strip -> collapse internal whitespace runs to one
+        space -> lowercase.
+
+    Uniform on purpose: emails carry no internal whitespace and are already
+    lower/trimmed, so this leaves every real email identity byte-identical
+    (existing join-campaign digests are unchanged); labels like "Centre  42 "
+    and "centre 42" seal identically. Do not change this under format v1."""
+    s = unicodedata.normalize("NFC", s or "")
+    return " ".join(s.split()).lower()
 
 
 def codebook_commitment(test_id, doc_metas, pdf_hashes=None):
@@ -48,7 +65,7 @@ def canonical_assignments(entries):
     The list order is fixed here because canonical() sorts dict keys but
     preserves list order."""
     out = [{"doc_id": doc_id,
-            "recipient": (recipient or "").strip().lower(),
+            "recipient": normalize_recipient(recipient),
             "assigned_utc": assigned_utc}
            for doc_id, recipient, assigned_utc in entries]
     out.sort(key=lambda e: e["doc_id"])

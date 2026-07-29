@@ -80,6 +80,17 @@ CREATE TABLE IF NOT EXISTS imported_recipients(
   recipient TEXT NOT NULL,
   assigned_utc TEXT,
   PRIMARY KEY(test_id, doc_id));
+-- Recipient mapping for a ROSTER campaign: the who-received-which link is fixed
+-- at creation (before distribution), so it seals pre_distribution. `recipient`
+-- is the sealed identity (email or centre label); `contact` is an optional,
+-- UNSEALED convenience field (correctable without breaking the seal).
+CREATE TABLE IF NOT EXISTS roster(
+  test_id TEXT NOT NULL,
+  doc_id TEXT NOT NULL,
+  recipient TEXT NOT NULL,
+  contact TEXT,
+  assigned_utc TEXT,
+  PRIMARY KEY(test_id, doc_id));
 CREATE INDEX IF NOT EXISTS idx_tests_user ON tests(user_id);
 CREATE INDEX IF NOT EXISTS idx_scans_test ON scans(test_id);
 CREATE INDEX IF NOT EXISTS idx_events ON events(user_id, kind, created_utc);
@@ -123,6 +134,19 @@ def _migrate(c):
         with c:
             c.execute("ALTER TABLE tests ADD COLUMN imported INTEGER"
                       " NOT NULL DEFAULT 0")
+    # Roster campaigns: recipients fixed at creation (pre_distribution seal).
+    # `roster_mode` is "count" | "roster" (distinct from identity_scheme:
+    # count binds copy->positional-label, roster binds copy->real-recipient).
+    if "roster" not in cols:
+        with c:
+            c.execute("ALTER TABLE tests ADD COLUMN roster INTEGER"
+                      " NOT NULL DEFAULT 0")
+    if "roster_mode" not in cols:
+        with c:
+            c.execute("ALTER TABLE tests ADD COLUMN roster_mode TEXT")
+    if "identity_scheme" not in cols:
+        with c:
+            c.execute("ALTER TABLE tests ADD COLUMN identity_scheme TEXT")
 
 
 def _now():
@@ -373,6 +397,51 @@ def imported_recipient(test_id, doc_id):
                        " WHERE test_id=? AND doc_id=?",
                        (test_id, doc_id)).fetchone()
     return dict(r) if r else None
+
+
+def is_roster(test_id):
+    """True if this campaign fixed its who-received-which mapping at creation
+    (a roster or count campaign), so it seals pre_distribution."""
+    r = conn().execute("SELECT roster FROM tests WHERE test_id=?",
+                       (test_id,)).fetchone()
+    return bool(r and r["roster"])
+
+
+def roster_info(test_id):
+    """Roster metadata for the recovery-key header: whether this is a roster
+    campaign, which naming mode produced it (count | roster), and the identity
+    scheme (email | label). Defaults describe an ordinary join campaign."""
+    r = conn().execute("SELECT roster, roster_mode, identity_scheme FROM tests"
+                       " WHERE test_id=?", (test_id,)).fetchone()
+    if not r or not r["roster"]:
+        return {"roster": False, "roster_mode": None,
+                "identity_scheme": "email"}
+    return {"roster": True, "roster_mode": r["roster_mode"],
+            "identity_scheme": r["identity_scheme"] or "label"}
+
+
+def roster_recipients(test_id):
+    """The fixed-at-creation mapping for a roster campaign, ordered by doc_id.
+    `recipient` is the sealed identity; `contact` is the unsealed convenience
+    field."""
+    rows = conn().execute(
+        "SELECT doc_id, recipient, contact, assigned_utc FROM roster"
+        " WHERE test_id=? ORDER BY doc_id", (test_id,)).fetchall()
+    return [dict(r) for r in rows]
+
+
+def record_roster(test_id, roster_mode, identity_scheme, entries):
+    """Fix a campaign's roster at creation: flag it and write the mapping in one
+    transaction. `entries` is an iterable of (doc_id, recipient, contact). The
+    caller normalises `recipient` (commitment.normalize_recipient) so what is
+    stored is exactly what will be sealed."""
+    with conn() as c:
+        c.execute("UPDATE tests SET roster=1, roster_mode=?, identity_scheme=?"
+                  " WHERE test_id=?", (roster_mode, identity_scheme, test_id))
+        for doc_id, recipient, contact in entries:
+            c.execute("INSERT OR REPLACE INTO roster(test_id, doc_id, recipient,"
+                      " contact, assigned_utc) VALUES(?,?,?,?,?)",
+                      (test_id, doc_id, recipient, contact, _now()))
 
 
 def assignment_rows(test_id):

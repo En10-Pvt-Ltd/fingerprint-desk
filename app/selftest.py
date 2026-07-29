@@ -309,6 +309,23 @@ ok(_cm.keyed_commitment("mid-a", _cb, _tam, _cm.SEAL_SNAPSHOT) != _k,
 ok(_cm.keyed_commitment("mid-a", "b" * 64, _ca, _cm.SEAL_SNAPSHOT) != _k,
    "keyed digest binds the codebook anchor (different codebook -> different)")
 
+# FROZEN normalisation: real email identities are byte-identical, so existing
+# join-campaign digests are unchanged. This exact value is the pre-Phase-4
+# anchor -- if this ever changes, every previously-sealed email mapping broke.
+_pin = _cm.canonical_assignments([("v2", "  Bob@X.com ", "t2"),
+                                  ("v1", "alice@x.com", "t1")])
+ok(_cm.keyed_commitment("pin-campaign", "a" * 64, _pin, "snapshot")
+   == "a895b556b546153c6111a71b856667abd1f0bb20d703ed02d78db9b6302b1e93",
+   "email keyed digest unchanged by the frozen normalisation (join anchor)")
+ok([e["recipient"] for e in _cm.canonical_assignments(
+    [("v1", "  Centre   42 ", "t"), ("v2", "CENTRE 7", "t")])]
+   == ["centre 42", "centre 7"],
+   "label identity normalised: NFC + collapse whitespace + lowercase")
+import unicodedata as _ud                     # noqa: E402
+ok(_cm.normalize_recipient("Café")
+   == _cm.normalize_recipient(_ud.normalize("NFD", "Café")),
+   "NFC folds composed vs decomposed accents to one identity")
+
 print("[1] layout preview")
 r = client.post("/api/layout", json={"content": render.SAMPLE_TEXT})
 ok(r.status_code == 200, "layout 200")
@@ -1313,6 +1330,51 @@ ok(_err(lambda: _rk.import_key(_div, ipayload, adminid)) == "ImportConflict",
    "divergent codebook -> ImportConflict (never silently merged)")
 ok(_snap() == _snapC,
    "divergent-conflict refusal did not overwrite the local campaign")
+
+print("[15e] roster campaign seals pre_distribution (Phase 4 foundation)")
+# a fresh admin (admin2 has spent its per-day test quota)
+radm, _ = make_user(client, "roster-admin@selftest.local")
+db.set_admin(db.get_user_by_email("roster-admin@selftest.local")["id"])
+r = radm.post("/api/tests", json={
+    "name": "Roster Demo", "content": render.SAMPLE_TEXT,
+    "variant_labels": ["Centre-1", "Centre-2"], "n_controls": 1,
+    "sample_used": True})
+rtid = r.json()["test_id"]
+wait_generated(radm, rtid)
+ok(_rk.current_seal(rtid, store.load_manifest(rtid)) == _cm.SEAL_SNAPSHOT,
+   "a plain campaign still seals snapshot (join default unchanged)")
+# fix a roster at creation, the way step-2's create flow will: count mode,
+# label identities, normalised to exactly what gets sealed
+db.record_roster(rtid, "count", "label",
+                 [("v1", _cm.normalize_recipient(" Centre-1 "), None),
+                  ("v2", _cm.normalize_recipient("CENTRE-2"),
+                   "ops@centre2.example")])
+ri = db.roster_info(rtid)
+ok(db.is_roster(rtid) and ri["roster_mode"] == "count"
+   and ri["identity_scheme"] == "label", "record_roster flags count/label")
+ok(_rk.current_seal(rtid, store.load_manifest(rtid))
+   == _cm.SEAL_PREDISTRIBUTION,
+   "a roster campaign now seals PRE-DISTRIBUTION (machinery unchanged)")
+rinfo = radm.get(f"/api/tests/{rtid}/recovery-info").json()
+ok(rinfo["mapping_seal"] == "pre-distribution"
+   and rinfo["identity_scheme"] == "label" and rinfo["roster_mode"] == "count",
+   "recovery-info reports pre-distribution + count/label", str(rinfo)[:100])
+renv = radm.post(f"/api/tests/{rtid}/recovery-key",
+                   json={"encrypt": False, "acknowledge_plaintext": True}).json()
+ok(renv["roster_mode"] == "count" and renv["identity_scheme"] == "label"
+   and renv["commitment"]["mapping_seal"] == "pre-distribution",
+   "key header carries roster_mode/identity_scheme + pre-distribution seal")
+ok({a["recipient"] for a in renv["payload"]["assignments"]}
+   == {"centre-1", "centre-2"},
+   "sealed identities are the normalised roster labels")
+ok(_cm.keyed_commitment(rtid, renv["commitment"]["codebook_sha256"],
+   renv["payload"]["assignments"], "pre-distribution")
+   == renv["commitment"]["keyed_sha256"],
+   "keyed digest recomputes from the roster mapping + pre_distribution seal")
+_rrt = radm.get(f"/api/tests/{rtid}/receipt").text
+ok("PRE-DISTRIBUTION" in _rrt and "count-mode roster" in _rrt
+   and "label->centre is external" in _rrt,
+   "count-mode receipt states pre-distribution + the external label->centre caveat")
 
 print("[16] volunteer pack flow (no account, verdicts withheld)")
 # Fabricate pack FP001 in the throwaway appdata: v1 = the repo dry-run
