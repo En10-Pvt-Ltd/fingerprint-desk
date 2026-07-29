@@ -668,6 +668,49 @@ function viewNew() {
     <select id="w-nvar">${[2, 3, 4, 5].filter(n => n <= maxV).map(n =>
       `<option value="${n}" ${n === Math.min(3, maxV) ? "selected" : ""}>${n} copies</option>`).join("")}
     </select>
+    ${ME.is_admin ? `
+    <div id="w-naming" style="margin-top:1.1rem;border-top:1px solid var(--line);padding-top:0.9rem">
+      <label class="f">Name the copies — a roster campaign, up to 300 (optional)</label>
+      <div class="rowline">
+        <label class="check"><input type="radio" name="w-mode" value="auto" checked>
+          Quick (Variant 1…N, using the count above)</label>
+        <label class="check"><input type="radio" name="w-mode" value="count">
+          By pattern</label>
+        <label class="check"><input type="radio" name="w-mode" value="roster">
+          By roster (paste / CSV)</label>
+      </div>
+      <div id="w-count" hidden style="margin-top:0.6rem">
+        <div class="rowline">
+          <input type="text" id="w-pattern" value="Centre-{n}"
+                 style="max-width:12rem" placeholder="Centre-{n}">
+          <input type="number" id="w-count-n" value="40" min="1" max="300"
+                 style="max-width:7rem">
+          <span class="muted small">copies (max 300)</span>
+        </div>
+        <div id="w-count-preview" class="note small" style="margin-top:0.5rem"></div>
+        <div class="callout callout-warn" style="margin-top:0.5rem">
+          Count mode seals <strong>copy → label</strong> (e.g. Centre-1). The link
+          from each label to a real centre is <strong>your own record</strong> —
+          keep it, because it is <strong>not sealed here</strong>.
+        </div>
+      </div>
+      <div id="w-roster" hidden style="margin-top:0.6rem">
+        <div class="rowline">
+          <label class="check"><input type="radio" name="w-ids" value="label" checked>
+            Names / centres</label>
+          <label class="check"><input type="radio" name="w-ids" value="email">
+            Emails</label>
+          <button class="btn" id="w-csvbtn" type="button">Upload CSV</button>
+          <input type="file" id="w-csv" accept=".csv,text/csv" hidden>
+        </div>
+        <textarea id="w-roster-text" style="margin-top:0.5rem;min-height:6rem"
+          placeholder="One recipient per line — e.g.&#10;Centre 42&#10;Centre 43&#10;Centre 44"></textarea>
+        <div id="w-roster-review" style="margin-top:0.5rem"></div>
+        <label class="check" id="w-dup-wrap" hidden><input type="checkbox" id="w-dup-ok">
+          The roster has <strong>duplicate recipients</strong> (more than one copy to
+          the same identity) — proceed anyway.</label>
+      </div>
+    </div>` : ""}
 
     <div class="actionbar">
       <button class="btn btn-gold btn-lg" id="w-go">Create the marked copies</button>
@@ -815,17 +858,158 @@ function viewNew() {
     pdfInput.value = "";
   });
 
+  // ---- roster / count naming (admin only) ----
+  // Same normalisation as the server (commitment.normalize_recipient), so the
+  // preview shows EXACTLY what will be sealed, not what was typed.
+  const nrm = s => (s || "").normalize("NFC").trim().replace(/\s+/g, " ")
+    .toLowerCase();
+  const emailOk = s => /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(s);
+  const modeEl = () =>
+    (document.querySelector('input[name="w-mode"]:checked') || {}).value || "auto";
+  const idScheme = () =>
+    (document.querySelector('input[name="w-ids"]:checked') || {}).value || "label";
+  let rosterRows = [];
+
+  const expandPattern = () => {
+    const pat = document.getElementById("w-pattern").value || "";
+    const n = Math.max(1, Math.min(300,
+      +document.getElementById("w-count-n").value || 0));
+    return [...Array(n).keys()].map(i => pat.replace(/\{n\}/g, i + 1));
+  };
+  function refreshCount() {
+    const box = document.getElementById("w-count-preview");
+    const pat = document.getElementById("w-pattern").value || "";
+    if (!pat.includes("{n}")) {
+      box.innerHTML = `<span style="color:var(--gold)">Pattern must contain
+        <code>{n}</code>.</span>`; return;
+    }
+    const names = expandPattern();
+    const show = names.length <= 6 ? names
+      : [...names.slice(0, 3), "…", names[names.length - 1]];
+    box.innerHTML = `<strong>${names.length}</strong> copies · sealed as:
+      ${show.map(esc).join(", ")}`;
+  }
+  function refreshRoster() {
+    const scheme = idScheme();
+    rosterRows = [];
+    for (const line of (document.getElementById("w-roster-text").value || "")
+        .split(/\r?\n/)) {
+      if (!line.trim()) continue;   // skip blank lines only — never a recipient
+      let raw = line, contact = "";
+      const comma = line.indexOf(",");
+      if (comma >= 0) { raw = line.slice(0, comma); contact = line.slice(comma + 1).trim(); }
+      raw = raw.replace(/^"(.*)"$/, "$1").trim();
+      const sealed = nrm(raw);
+      const status = !sealed ? "empty"
+        : (scheme === "email" && !emailOk(sealed)) ? "bademail" : "ok";
+      rosterRows.push({ raw, contact, sealed, status });
+    }
+    const counts = {};
+    rosterRows.forEach(r => { if (r.sealed) counts[r.sealed] = (counts[r.sealed] || 0) + 1; });
+    rosterRows.forEach(r => { if (r.status === "ok" && counts[r.sealed] > 1) r.status = "dup"; });
+    const box = document.getElementById("w-roster-review");
+    const dupWrap = document.getElementById("w-dup-wrap");
+    if (!rosterRows.length) {
+      box.innerHTML = `<p class="muted small">Paste recipients or upload a CSV —
+        one per line. The preview shows exactly what will be sealed.</p>`;
+      dupWrap.hidden = true; return;
+    }
+    const errs = rosterRows.filter(r => r.status === "empty" || r.status === "bademail").length;
+    const dups = rosterRows.filter(r => r.status === "dup").length;
+    dupWrap.hidden = !dups;
+    box.innerHTML = `<div class="table-scroll"><table>
+      <tr><th>#</th><th>copy</th><th>sealed identity</th><th>status</th></tr>
+      ${rosterRows.map((r, i) => {
+        const b = r.status === "ok" ? `<span class="chip chip-ok">ok</span>`
+          : r.status === "dup" ? `<span class="chip">duplicate</span>`
+          : `<span class="chip" style="color:var(--gold)">${r.status === "empty"
+              ? "empty row" : "bad email"}</span>`;
+        return `<tr><td>${i + 1}</td><td>v${i + 1}</td>
+          <td><code>${esc(r.sealed || "—")}</code></td><td>${b}</td></tr>`;
+      }).join("")}</table></div>
+      <p class="muted small">${rosterRows.length} copies · ${errs} error(s) ·
+        ${dups} duplicate(s). Each row is sealed exactly as shown.</p>`;
+  }
+  function namingValid() {
+    const m = modeEl();
+    if (m === "count")
+      return document.getElementById("w-pattern").value.includes("{n}");
+    if (m === "roster") {
+      if (!rosterRows.length) return false;
+      if (rosterRows.some(r => r.status === "empty" || r.status === "bademail")) return false;
+      if (rosterRows.some(r => r.status === "dup")
+          && !document.getElementById("w-dup-ok").checked) return false;
+      return true;
+    }
+    return true;
+  }
+  function updateGo() {   // Generate stays DISABLED until the gate is satisfied
+    const btn = document.getElementById("w-go");
+    if (btn) btn.disabled = modeEl() !== "auto" && !namingValid();
+  }
+  function showPanel() {
+    if (!document.getElementById("w-naming")) return;   // non-admin: no section
+    const m = modeEl();
+    document.getElementById("w-count").hidden = m !== "count";
+    document.getElementById("w-roster").hidden = m !== "roster";
+    document.getElementById("w-nvar").disabled = m !== "auto";
+    if (m === "count") refreshCount();
+    if (m === "roster") refreshRoster();
+    updateGo();
+  }
+  document.querySelectorAll('input[name="w-mode"]').forEach(el => el.onchange = showPanel);
+  document.querySelectorAll('input[name="w-ids"]').forEach(el => el.onchange = () => { refreshRoster(); updateGo(); });
+  ["w-pattern", "w-count-n"].forEach(id => {
+    const e = document.getElementById(id);
+    if (e) e.oninput = () => { refreshCount(); updateGo(); }; });
+  const _rt = document.getElementById("w-roster-text");
+  if (_rt) _rt.oninput = () => { refreshRoster(); updateGo(); };
+  const _dup = document.getElementById("w-dup-ok");
+  if (_dup) _dup.onchange = updateGo;
+  const _csvBtn = document.getElementById("w-csvbtn");
+  const _csvIn = document.getElementById("w-csv");
+  if (_csvBtn) _csvBtn.onclick = () => _csvIn.click();
+  if (_csvIn) _csvIn.onchange = async () => {
+    if (!_csvIn.files[0]) return;
+    document.getElementById("w-roster-text").value = await _csvIn.files[0].text();
+    refreshRoster(); updateGo(); _csvIn.value = "";
+  };
+  showPanel();
+
   document.getElementById("w-go").onclick = async () => {
     const name = document.getElementById("w-name").value.trim()
       || (pdfState ? pdfState.filename : "My document");
     const text = content.value.trim();
-    const n = +nvar.value || 2;
-    const labels = [...Array(n).keys()].map(i => `Variant ${i + 1}`);
     const status = document.getElementById("w-status");
     if (!pdfState && !text) {
       status.textContent = "Upload a PDF or load the sample text first.";
       return;
     }
+    const mode = modeEl();
+    if (mode !== "auto" && !namingValid()) {
+      status.textContent = "Fix the roster before generating — see the preview "
+        + "(errors block, duplicates need the confirm box).";
+      return;
+    }
+    // labels + roster fields per naming mode
+    let labels, roster = {};
+    if (mode === "count") {
+      const recips = expandPattern();
+      labels = recips;
+      roster = {distribution: "roster", roster_mode: "count",
+                identity_scheme: "label", recipients: recips};
+    } else if (mode === "roster") {
+      const recips = rosterRows.map(r => r.raw);
+      labels = recips;
+      roster = {distribution: "roster", roster_mode: "roster",
+                identity_scheme: idScheme(), recipients: recips,
+                contacts: rosterRows.map(r => r.contact || null),
+                allow_duplicates: !!document.getElementById("w-dup-ok").checked};
+    } else {
+      const n = +nvar.value || 2;
+      labels = [...Array(n).keys()].map(i => `Variant ${i + 1}`);
+    }
+    const n = labels.length;
     status.innerHTML = `<span class="spin"></span> Making ${n} marked copies
       + 1 control…`;
     document.getElementById("w-go").disabled = true;
@@ -833,9 +1017,9 @@ function viewNew() {
       const payload = pdfState
         ? {name, mode: pdfState.mode || "pdf_preserved",
            upload_id: pdfState.upload_id,
-           content: "", variant_labels: labels, n_controls: 1}
+           content: "", variant_labels: labels, n_controls: 1, ...roster}
         : {name, content: text, variant_labels: labels, n_controls: 1,
-           sample_used: sampleUsed};
+           sample_used: sampleUsed, ...roster};
       const r = await postJSON("/api/tests", payload);
       const warn = r.capacity_warning
         ? `<div class="callout callout-warn"><strong>Heads up:</strong>

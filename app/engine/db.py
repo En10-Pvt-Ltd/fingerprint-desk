@@ -420,6 +420,15 @@ def roster_info(test_id):
             "identity_scheme": r["identity_scheme"] or "label"}
 
 
+def roster_recipient(test_id, doc_id):
+    """The sealed recipient a single doc_id was issued to in a roster campaign,
+    or None (for naming a scan verdict on the issuing machine)."""
+    r = conn().execute("SELECT recipient, assigned_utc FROM roster"
+                       " WHERE test_id=? AND doc_id=?",
+                       (test_id, doc_id)).fetchone()
+    return dict(r) if r else None
+
+
 def roster_recipients(test_id):
     """The fixed-at-creation mapping for a roster campaign, ordered by doc_id.
     `recipient` is the sealed identity; `contact` is the unsealed convenience

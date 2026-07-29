@@ -41,7 +41,7 @@ import secrets
 
 from engine import (APPDATA, REPO, store, render, scan, channel_sim,
                     render_pdf, scan_pdf, scan_raster, db, jobs, packs,
-                    recovery)
+                    recovery, commitment)
 import auth
 
 
@@ -280,11 +280,19 @@ class LayoutReq(BaseModel):
 class CreateReq(BaseModel):
     name: str
     content: str = ""
-    variant_labels: list[str]
+    variant_labels: list[str] = []   # join campaigns; roster derives from recipients
     n_controls: int = 1
     sample_used: bool = False
     mode: str = "rendered"          # "rendered" | "pdf_preserved"
     upload_id: str | None = None    # required for pdf_preserved
+    # Phase 4 roster campaigns: the who-received-which mapping is fixed at
+    # creation, so the campaign seals pre_distribution.
+    distribution: str = "join"       # "join" | "roster"
+    roster_mode: str | None = None   # "count" | "roster"
+    identity_scheme: str | None = None   # "email" | "label"
+    recipients: list[str] | None = None  # roster identities (raw), one per copy
+    contacts: list[str] | None = None    # optional unsealed contact, parallel
+    allow_duplicates: bool = False       # explicit confirm for duplicate identities
 
 
 class SimulateReq(BaseModel):
@@ -474,6 +482,44 @@ def tests(user=Depends(require_user)):
     return out
 
 
+_EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
+
+
+def _validate_roster(req, variant_cap):
+    """Validate a roster/count campaign server-side (never trust the client's
+    review gate): returns (labels, sealed, contacts). `labels` are the raw copy
+    names; `sealed` are the normalised identities that go into the digest;
+    duplicates are refused unless allow_duplicates is set (the server-side twin
+    of the UI confirm)."""
+    if req.roster_mode not in ("count", "roster"):
+        raise HTTPException(400, "roster_mode must be 'count' or 'roster'")
+    scheme = req.identity_scheme or "label"
+    if scheme not in ("email", "label"):
+        raise HTTPException(400, "identity_scheme must be 'email' or 'label'")
+    recips = [r for r in (req.recipients or [])]
+    if not 1 <= len(recips) <= variant_cap:
+        raise HTTPException(400, f"a roster needs 1..{variant_cap} recipients")
+    contacts = req.contacts if req.contacts is not None else [None] * len(recips)
+    if len(contacts) != len(recips):
+        raise HTTPException(400, "contacts must be parallel to recipients")
+    sealed = []
+    for i, raw in enumerate(recips):
+        s = commitment.normalize_recipient(raw)
+        if not s:
+            raise HTTPException(400, f"recipient on row {i + 1} is empty")
+        if scheme == "email" and not _EMAIL_RE.match(s):
+            raise HTTPException(400, f"row {i + 1} is not a valid email: {raw!r}")
+        sealed.append(s)
+    dups = sorted({s for s in sealed if sealed.count(s) > 1})
+    if dups and not req.allow_duplicates:
+        raise HTTPException(400, detail={
+            "code": "duplicate_recipients",
+            "message": "the roster has duplicate identities; confirm to allow "
+                       "more than one copy per recipient",
+            "duplicates": dups})
+    return recips, sealed, contacts
+
+
 @app.post("/api/tests")
 def create_test(req: CreateReq, user=Depends(require_user),
                 _=Depends(csrf_check)):
@@ -482,8 +528,20 @@ def create_test(req: CreateReq, user=Depends(require_user),
     # Admins may run large assigned campaigns; self-serve keeps the small cap
     variant_cap = MAX_CAMPAIGN_VARIANTS if auth.is_admin(user) \
         else MAX_VARIANTS
-    if not 1 <= len(req.variant_labels) <= variant_cap:
-        raise HTTPException(400, f"1..{variant_cap} variants")
+    # A roster campaign fixes recipients at creation (pre_distribution seal);
+    # it is a controller feature, so it is admin-only and uses the full cap.
+    is_roster = req.distribution == "roster"
+    roster_sealed = roster_contacts = None
+    if is_roster:
+        if not auth.is_admin(user):
+            raise HTTPException(403, "roster campaigns are an admin feature")
+        labels, roster_sealed, roster_contacts = _validate_roster(req,
+                                                                  variant_cap)
+    else:
+        labels = req.variant_labels
+        if not 1 <= len(labels) <= variant_cap:
+            raise HTTPException(400, f"1..{variant_cap} variants")
+    req.variant_labels = labels
     check_quota(user, "test", QUOTA_TESTS_PER_DAY)   # per test, not variant
     n_controls = 1      # the unmarked control is the credibility check;
                         # public mode pins it to exactly one
@@ -562,6 +620,16 @@ def create_test(req: CreateReq, user=Depends(require_user),
                 render.generate_test(req.name, req.content,
                                      req.variant_labels, n_controls,
                                      req.sample_used, test_id)
+            if is_roster:
+                # Bind + seal the who-received-which mapping at creation: copy
+                # v(i+1) -> the i-th recipient. This is the ONLY place a roster
+                # is written; a roster campaign is frozen from here (no route
+                # extends it, and share/join refuse it), so the pre_distribution
+                # seal cannot be silently weakened after it is relied upon.
+                db.record_roster(
+                    test_id, req.roster_mode, req.identity_scheme or "label",
+                    [(f"v{i + 1}", roster_sealed[i], roster_contacts[i])
+                     for i in range(len(roster_sealed))])
             db.set_test_status(test_id, "generated")
         except Exception as e:
             log.exception("generation failed for %s", test_id)
@@ -621,11 +689,17 @@ def join_campaign(test_id: str, user=Depends(require_user),
     """Assigned-campaign join: hand this contributor the lowest unassigned
     MARKED variant (controls are never assigned). Idempotent: re-joining
     returns the existing assignment."""
-    if not store.valid_id(test_id) or db.test_owner(test_id) is None \
-            or not db.is_shared(test_id):
+    if not store.valid_id(test_id) or db.test_owner(test_id) is None:
         raise HTTPException(404, "no such campaign")
+    # Refuse roster/imported campaigns with a clear reason before the generic
+    # not-shared 404 (a roster campaign is never shared, but say why regardless).
+    if db.is_roster(test_id):
+        raise HTTPException(400, "this campaign's copies are pre-assigned by "
+                            "roster; there is nothing to claim")
     if db.is_imported(test_id):
         raise HTTPException(400, "imported campaigns are investigation-only")
+    if not db.is_shared(test_id):
+        raise HTTPException(404, "no such campaign")
     if not db.is_assign_mode(test_id):
         raise HTTPException(400, "this campaign does not assign variants; "
                                  "pick any variant to print")
@@ -823,16 +897,20 @@ async def import_recovery_key(file: UploadFile = File(...),
 
 
 def _name_recipient(test_id, result):
-    """For an imported campaign, resolve an attributed doc_id to the recipient
-    the recovery key says received it, so the verdict names a person -- not a
-    'Copy N'. This is the whole point of the feature on a recovery machine."""
-    if not db.is_imported(test_id):
-        return
+    """Resolve an attributed doc_id to the recipient it was issued to, so the
+    verdict names a person -- not a 'Copy N'. Works for imported campaigns (from
+    the recovery key's sealed mapping) and roster campaigns (from the roster
+    fixed at creation). Join campaigns have no such sealed mapping here."""
     v = result.get("verdict") or {}
-    if v.get("attributed") and v.get("doc_id"):
+    if not (v.get("attributed") and v.get("doc_id")):
+        return
+    rec = None
+    if db.is_imported(test_id):
         rec = db.imported_recipient(test_id, v["doc_id"])
-        if rec:
-            v["recipient"] = rec["recipient"]
+    elif db.is_roster(test_id):
+        rec = db.roster_recipient(test_id, v["doc_id"])
+    if rec:
+        v["recipient"] = rec["recipient"]
 
 
 @app.get("/api/tests/{test_id}/pdf/{doc_id}")
@@ -1190,6 +1268,11 @@ def share_test(test_id: str, req: ShareReq, user=Depends(require_admin),
     if db.is_imported(test_id):
         raise HTTPException(400, "imported campaigns are investigation-only "
                             "and cannot be shared with contributors")
+    if db.is_roster(test_id):
+        raise HTTPException(400, "this is a roster campaign: every copy is "
+                            "already assigned to a named recipient, so it "
+                            "cannot be shared for contributors to join "
+                            "(that would break its pre-distribution seal)")
     assign_mode = bool(req.shared and req.assigned)
     db.set_shared(test_id, req.shared, assign_mode)
     warning = None

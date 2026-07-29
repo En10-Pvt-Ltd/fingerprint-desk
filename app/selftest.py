@@ -1376,6 +1376,63 @@ ok("PRE-DISTRIBUTION" in _rrt and "count-mode roster" in _rrt
    and "label->centre is external" in _rrt,
    "count-mode receipt states pre-distribution + the external label->centre caveat")
 
+print("[15f] roster create flow (count/roster modes, gates, pre_distribution)")
+radm2, _ = make_user(client, "roster-admin2@selftest.local")
+db.set_admin(db.get_user_by_email("roster-admin2@selftest.local")["id"])
+_rbase = {"content": render.SAMPLE_TEXT, "sample_used": True,
+          "distribution": "roster", "roster_mode": "roster",
+          "identity_scheme": "label"}
+# server-side gates (all 400 BEFORE generation, so they cost no quota)
+_dup = radm2.post("/api/tests", json={**_rbase, "name": "Dup",
+                  "recipients": ["Centre 5", "centre  5"]})
+ok(_dup.status_code == 400
+   and _dup.json()["detail"]["code"] == "duplicate_recipients"
+   and "centre 5" in _dup.json()["detail"]["duplicates"],
+   "duplicate identities refused without an explicit confirm (server-side)")
+ok(radm2.post("/api/tests", json={**_rbase, "name": "Empty",
+   "recipients": ["Centre 5", "   "]}).status_code == 400,
+   "a recipient row empty after normalisation is refused")
+ok(radm2.post("/api/tests", json={**_rbase, "name": "BadEmail",
+   "identity_scheme": "email", "recipients": ["ok@x.com", "not-an-email"]})
+   .status_code == 400, "invalid email refused under the email scheme")
+ok(plain.post("/api/tests", json={**_rbase, "name": "NoAdmin",
+   "recipients": ["Centre 1"]}).status_code == 403,
+   "roster campaigns are admin-only")
+
+# a count-mode roster campaign, bound + sealed at creation
+r = radm2.post("/api/tests", json={
+    "name": "Centres", "content": render.SAMPLE_TEXT, "sample_used": True,
+    "distribution": "roster", "roster_mode": "count", "identity_scheme": "label",
+    "recipients": ["Centre-1", "Centre-2", "Centre-3"]})
+ok(r.status_code == 200, "count-mode roster create accepted", str(r.json())[:80])
+ftid = r.json()["test_id"]
+fm = wait_generated(radm2, ftid)
+ok(db.is_roster(ftid) and [x["recipient"] for x in db.roster_recipients(ftid)]
+   == ["centre-1", "centre-2", "centre-3"],
+   "roster bound at creation: v1..v3 -> normalised labels")
+ok(_rk.current_seal(ftid, fm) == _cm.SEAL_PREDISTRIBUTION,
+   "created roster campaign seals pre_distribution")
+
+# immutability + non-sharing, enforced server-side
+ok(radm2.post(f"/api/admin/tests/{ftid}/share",
+   json={"shared": True}).status_code == 400,
+   "roster campaign refuses share-for-join (server-side, clear reason)")
+ok(radm2.post(f"/api/campaigns/{ftid}/join").status_code == 400,
+   "roster campaign refuses join (server-side, clear reason)")
+
+# a leak on the roster campaign names the sealed recipient
+_rld = _tf.mkdtemp()
+_rli, _ = _cs.simulate(os.path.join(store.test_dir(ftid), "docs", "v2",
+                                    "page0.png"), _rld, "whatsapp")
+_rrr = radm2.post(f"/api/tests/{ftid}/scan",
+                  files={"file": ("leak.jpg", open(_rli, "rb").read(),
+                                  "image/jpeg")}, data={"framing": "full"})
+_rrv = _rrr.json().get("verdict", {})
+ok(_rrv.get("attributed") and _rrv.get("doc_id") == "v2"
+   and _rrv.get("recipient") == "centre-2",
+   "roster-campaign verdict names the sealed recipient",
+   str(_rrv.get("recipient")))
+
 print("[16] volunteer pack flow (no account, verdicts withheld)")
 # Fabricate pack FP001 in the throwaway appdata: v1 = the repo dry-run
 # meta (received.jpeg is a real capture of it), v2 = every bit flipped
