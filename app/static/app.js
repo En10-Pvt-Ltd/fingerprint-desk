@@ -1198,6 +1198,8 @@ function renderPrintStep(m) {
   <div class="actionbar">
     <a class="btn btn-gold btn-lg" href="#/test/${esc(m.test_id)}/photo">
       I've printed a page — continue</a>
+    ${m.is_owner ? `<a class="btn" href="/api/tests/${esc(m.test_id)}/copies.zip"
+      download>Download all copies (ZIP)</a>` : ""}
     ${m.scans.length ? `<a class="btn" href="#/test/${esc(m.test_id)}/log">
       Past photos (${m.scans.length})</a>` : ""}
   </div>`;

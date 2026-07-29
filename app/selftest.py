@@ -1433,6 +1433,40 @@ ok(_rrv.get("attributed") and _rrv.get("doc_id") == "v2"
    "roster-campaign verdict names the sealed recipient",
    str(_rrv.get("recipient")))
 
+print("[15g] bulk ZIP download (slugified, de-collided, control isolated)")
+radm3, _ = make_user(client, "roster-admin3@selftest.local")
+db.set_admin(db.get_user_by_email("roster-admin3@selftest.local")["id"])
+r = radm3.post("/api/tests", json={
+    "name": "Awkward Roster", "content": render.SAMPLE_TEXT, "sample_used": True,
+    "distribution": "roster", "roster_mode": "roster", "identity_scheme": "label",
+    "recipients": ["Café №42", "Centre/7", "Centre 7"]})
+ok(r.status_code == 200, "awkward-label roster create accepted", str(r.json())[:80])
+gtid = r.json()["test_id"]
+wait_generated(radm3, gtid)
+import zipfile as _zip                      # noqa: E402
+import io as _io                            # noqa: E402
+kz = radm3.get(f"/api/tests/{gtid}/copies.zip")
+ok(kz.status_code == 200
+   and "application/zip" in kz.headers.get("content-type", "")
+   and "attachment" in kz.headers.get("content-disposition", ""),
+   "copies.zip downloads as a zip attachment")
+names = _zip.ZipFile(_io.BytesIO(kz.content)).namelist()
+ok("_control/CONTROL-unmarked-do-not-distribute.pdf" in names,
+   "the unmarked control is isolated + clearly named inside the ZIP")
+ok("README.txt" in names and "copies.csv" in names,
+   "ZIP carries a README + a file->copy index")
+_marked = sorted(n for n in names
+                 if n.endswith(".pdf") and not n.startswith("_control/"))
+ok(_marked == ["Caf-42.pdf", "Centre-7-2.pdf", "Centre-7.pdf"],
+   "awkward labels slugified + colliding names de-collided", str(_marked))
+ok(len([n for n in names if "CONTROL" in n]) == 1,
+   "exactly one control among the copies")
+_csv = _zip.ZipFile(_io.BytesIO(kz.content)).read("copies.csv").decode()
+ok("do not distribute" in _csv.lower(),
+   "copies.csv flags the control as do-not-distribute")
+ok(plain.get(f"/api/tests/{gtid}/copies.zip").status_code == 404,
+   "copies.zip is owner/admin only (a contributor gets 404)")
+
 print("[16] volunteer pack flow (no account, verdicts withheld)")
 # Fabricate pack FP001 in the throwaway appdata: v1 = the repo dry-run
 # meta (received.jpeg is a real capture of it), v2 = every bit flipped

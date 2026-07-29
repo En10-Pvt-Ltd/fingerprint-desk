@@ -16,6 +16,7 @@ SQLite (engine/db.py).
 """
 import collections
 import datetime
+import io
 import ipaddress
 import json
 import logging
@@ -23,14 +24,17 @@ import math
 import os
 import re
 import shutil
+import tempfile
 import threading
 import time
 import traceback
+import zipfile
 
 from fastapi import (Depends, FastAPI, File, Form, HTTPException, Request,
                      UploadFile)
 from fastapi.responses import FileResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
+from starlette.background import BackgroundTask
 from starlette.concurrency import run_in_threadpool
 from starlette.middleware.sessions import SessionMiddleware
 from pydantic import BaseModel
@@ -938,6 +942,77 @@ def pdf(test_id: str, doc_id: str, user=Depends(require_user)):
                      resolution=300)
     return FileResponse(out, media_type="application/pdf",
                         filename=f"{test_id}_{doc_id}.pdf")
+
+
+def _slug_filename(label):
+    """A readable, filesystem-safe copy filename from a copy label -- works for
+    awkward roster labels (accents, symbols, emails), not just Centre-{n}."""
+    s = re.sub(r"[^A-Za-z0-9 ._-]", "-", label or "copy")
+    return (re.sub(r"[-\s]+", "-", s).strip("-. ") or "copy")[:60]
+
+
+def _copy_pdf_bytes(test_id, m, doc_id):
+    ddir = os.path.join(store.test_dir(test_id), "docs", doc_id)
+    if m.get("type") in ("pdf_preserved", "pdf_raster", "pdf_vector"):
+        with open(os.path.join(ddir, "document.pdf"), "rb") as f:
+            return f.read()
+    imgs = [Image.open(os.path.join(ddir, f"page{k}.png")).convert("L")
+            for k in range(m["n_pages"])]
+    buf = io.BytesIO()
+    imgs[0].save(buf, "PDF", save_all=True, append_images=imgs[1:],
+                 resolution=300)
+    return buf.getvalue()
+
+
+def _build_copies_zip(test_id, m, zpath):
+    """Build the whole-campaign ZIP to a temp file, ONE PDF held in memory at a
+    time (peak heap is O(1) in the copy count, not O(300)). Marked copies at the
+    root named by copy; the unmarked control isolated under _control/ and called
+    out in README.txt + copies.csv so it is never handed to a recipient."""
+    used, index = {}, ["file\tcopy\tnote"]
+    with zipfile.ZipFile(zpath, "w", zipfile.ZIP_DEFLATED) as z:
+        for d in m["docs"]:
+            data = _copy_pdf_bytes(test_id, m, d["doc_id"])
+            if not d.get("marked"):
+                name = "_control/CONTROL-unmarked-do-not-distribute.pdf"
+                note = "UNMARKED CONTROL - do not distribute"
+            else:
+                base = _slug_filename(d["label"])
+                n = used.get(base, 0) + 1
+                used[base] = n
+                name = f"{base}.pdf" if n == 1 else f"{base}-{n}.pdf"
+                note = ""
+            z.writestr(name, data)
+            index.append(f"{name}\t{d.get('label', '')}\t{note}")
+        z.writestr("README.txt", "\n".join([
+            f"Printable copies for: {m.get('name')} ({test_id})", "",
+            "Each marked copy carries a different invisible fingerprint. Print",
+            "at 100% / actual size and do not photocopy.", "",
+            "!! The file under _control/ is the UNMARKED CONTROL. It is a",
+            "   credibility check, NOT a recipient copy -- DO NOT DISTRIBUTE it.",
+            "", "copies.csv lists which file is which copy.", ""]))
+        z.writestr("copies.csv", "\n".join(index) + "\n")
+
+
+def _rm_tempdir(path):
+    shutil.rmtree(path, ignore_errors=True)
+
+
+@app.get("/api/tests/{test_id}/copies.zip")
+async def copies_zip(test_id: str, user=Depends(require_user)):
+    """Download every copy's PDF as one ZIP (owner/admin only). Built to a temp
+    file in a threadpool (bounded memory, off the event loop) and streamed."""
+    m = _manifest(test_id, user)              # owner/admin only
+    if m.get("status") != "generated":
+        raise HTTPException(409, "test not generated")
+    if m.get("type") == "pack":
+        raise HTTPException(400, "not available for volunteer-pack tests")
+    tmpdir = tempfile.mkdtemp(prefix="copieszip-")
+    zpath = os.path.join(tmpdir, f"{test_id}-copies.zip")
+    await run_in_threadpool(_build_copies_zip, test_id, m, zpath)
+    return FileResponse(zpath, media_type="application/zip",
+                        filename=f"{test_id}-copies.zip",
+                        background=BackgroundTask(_rm_tempdir, tmpdir))
 
 
 # Ownership-gated replacement for the old public /files mount. Images only:
