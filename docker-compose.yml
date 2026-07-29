@@ -5,6 +5,9 @@ services:
     restart: unless-stopped
     env_file: .env
     environment:
+      # Docker deployments are network deployments: always server mode
+      # (email+password accounts; first visit runs the one-time setup).
+      FF_MODE: "server"
       FF_MAX_VARIANTS: "5"
       # The app port is never published (only Caddy is), so the immediate
       # peer is always Caddy: trust its X-Forwarded-For for per-client

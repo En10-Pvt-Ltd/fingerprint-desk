@@ -1,34 +1,38 @@
 # Fingerprint Desk
 
 Public crowdsourcing app over the research pipeline: contributors sign in
-with Google, download one of up to 5 fingerprinted variants (their secret
-pick), print it, photograph it, upload the photo, and confirm whether the
-blind decoder named the right variant. Each confirmed answer is a
-ground-truth label and each photo a real-channel capture for the Part-B
-corpus.
+(server mode: invite-only email+password accounts), download one of up to
+5 fingerprinted variants (their secret pick), print it, photograph it,
+upload the photo, and confirm whether the blind decoder named the right
+variant. Each confirmed answer is a ground-truth label and each photo a
+real-channel capture for the Part-B corpus.
 
-## Run (local dev)
+## Run (local mode — single operator, no accounts)
 
 ```
 pip install -r requirements.txt -r app/requirements.txt
-FF_DEV_LOGIN=1 python app/serve.py       # -> http://localhost:8765
+python app/serve.py       # -> http://localhost:8765
 ```
 
-`FF_DEV_LOGIN=1` enables `POST /auth/dev-login {"email": ...}` so you can
-sign in without Google credentials (selftest uses this too). On Linux also
-set `FF_FONT_PATH=/usr/share/fonts/truetype/dejavu/DejaVuSerif.ttf`.
+With `FF_MODE` unset and the default loopback bind this is **local mode**:
+every request acts as the implicit local operator (an admin); the server
+refuses to bind to anything but loopback. On Linux also set
+`FF_FONT_PATH=/usr/share/fonts/truetype/dejavu/DejaVuSerif.ttf`.
 
-## Deploy (VPS)
+## Deploy (VPS — server mode)
 
 ```
-cp .env.example .env      # fill in DOMAIN, Google OAuth creds, SECRET_KEY,
-                          # ADMIN_EMAILS
+cp .env.example .env      # set SECRET_KEY, DOMAIN, BASE_URL
 docker compose up -d      # app + Caddy (automatic Let's Encrypt TLS)
 ```
 
-Register the OAuth redirect URI `https://$DOMAIN/auth/callback` in the
-Google Cloud console. All state lives in `./data` (SQLite `app.db` +
-`appdata/` file store) — back that directory up.
+Docker deployments run in **server mode** (`FF_MODE=server`, pinned in
+docker-compose.yml): the first visit shows a one-time setup screen that
+creates the admin account, and further accounts are minted as single-use
+invite links from `/admin`. (Google sign-in was removed; a hosted mode may
+reintroduce OAuth in a later phase — see MIGRATION.md.) All state lives in
+`./data` (SQLite `app.db` + `appdata/` file store) — back that directory
+up.
 
 ## Crowdsourcing model
 
@@ -54,7 +58,8 @@ Google Cloud console. All state lives in `./data` (SQLite `app.db` +
 - **Export**: `/admin` shows totals and streams a zip of labeled captures
   with intake.py-style sidecars (`synthetic: false`, unknown fields as
   `crowd_unknown`) for the corpus harness.
-- **Hardening**: Google OAuth + CSRF, per-user ownership on every route,
+- **Hardening**: Argon2id local accounts (server mode) + CSRF, login rate
+  limiting, per-user ownership on every route,
   ground-truth metas never servable, upload size/page caps, untrusted PDFs
   parsed in a memory-limited child process, bounded generation/scan
   workers, per-user daily quotas.
@@ -96,14 +101,18 @@ Google Cloud console. All state lives in `./data` (SQLite `app.db` +
 python app/selftest.py
 ```
 
-End-to-end self-test (114 checks) against a throwaway FF_APPDATA: the
-original research-pipeline checks (layout, generation, commitment,
-simulated leaks, control credibility, PDF modes, the Phase A real-capture
-regression at line-shift 0.933) plus auth gating, CSRF, ownership
-isolation, the never-servable ground-truth metas, the 5-variant cap,
-quotas, feedback round-trip, shared campaigns, assigned campaigns
-(join / assignment isolation / funnel / capacity warning), the corpus
-export zip, the runner-up margin rule (both simulated wrong-variant
+End-to-end self-test (202 checks) run in server mode (FF_MODE=server)
+against a throwaway FF_APPDATA: the original research-pipeline checks
+(layout, generation, commitment, simulated leaks, control credibility,
+PDF modes, the Phase A real-capture regression at line-shift 0.933) plus
+the server-mode auth surface (first-run setup creates exactly one admin,
+email+password login with one generic failure message, bad-login rate
+limiting, single-use expiring invites, non-admins blocked from admin
+routes), the local-mode loopback-guard helper, CSRF, ownership isolation
+(tests, PDFs, files, scans), the never-servable ground-truth metas, the
+5-variant cap, quotas, feedback round-trip, shared campaigns, assigned
+campaigns (join / assignment isolation / funnel / capacity warning), the
+corpus export zip, the runner-up margin rule (both simulated wrong-variant
 near-ties abstain, clean reads still attribute), the minimum-resolution
 gate, overflow-safe pooled binomial tails past 1023 bits, and the pooled
 per-contributor verdict endpoint.

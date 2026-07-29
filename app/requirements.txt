@@ -6,5 +6,5 @@ python-multipart>=0.0.9
 pymupdf>=1.24          # PDF text extraction (Stage 1) + layout analysis (Stage 2)
 pikepdf>=9.0           # content-stream editing (Stage 2 pdf_mark)
 httpx>=0.27            # FastAPI TestClient (selftest.py)
-authlib>=1.3           # Google OAuth (auth.py)
+argon2-cffi>=23.1      # Argon2id password hashing (auth.py)
 itsdangerous>=2.1      # signed session cookies (SessionMiddleware)

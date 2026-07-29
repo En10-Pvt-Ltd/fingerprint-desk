@@ -27,6 +27,18 @@ async function api(path) {
   return body;
 }
 
+let CSRF = "";      // from /api/me; needed for the invite POST
+
+async function postJSON(path, data) {
+  const r = await fetch(path, {
+    method: "POST",
+    headers: {"Content-Type": "application/json", "X-CSRF-Token": CSRF},
+    body: JSON.stringify(data)});
+  const body = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(body.detail || r.statusText);
+  return body;
+}
+
 function funnelHTML(f) {
   const total = Math.max(f.n_variants || 0, 1);
   const confirmed = (f.feedback_correct || 0) + (f.feedback_wrong || 0);
@@ -79,7 +91,7 @@ async function renderCampaignFunnels() {
 }
 
 async function main() {
-  let stats;
+  let stats, cfg = {};
   try { stats = await api("/api/admin/stats"); }
   catch (e) {
     view.innerHTML = `<div class="card"><p>${esc(e.message)}</p>
@@ -87,6 +99,10 @@ async function main() {
       admin account first.</p></div>`;
     return;
   }
+  try {
+    cfg = await api("/api/config");
+    CSRF = (await api("/api/me")).csrf;
+  } catch (e) { /* invite card just won't render */ }
   const fb = stats.feedback || {};
   const labeled = (fb.correct || 0) + (fb.wrong || 0);
   view.innerHTML = `
@@ -115,10 +131,38 @@ async function main() {
     <span class="muted small">real captures with confirmed ground truth,
       intake-style sidecars</span>
   </div>
+  ${cfg.mode === "server" ? `
+  <h2>Invite a contributor</h2>
+  <div class="card">
+    <p class="muted small">Accounts are invite-only: create a single-use
+    link (valid for a few days) and send it to the contributor yourself —
+    the server sends no email.</p>
+    <form id="inviteform" class="rowline">
+      <input type="email" id="inv-email" required
+             placeholder="contributor@example.org"
+             style="flex:1;min-width:12rem">
+      <button class="btn btn-gold" type="submit">Create invite link</button>
+    </form>
+    <p class="small" id="inv-out" style="word-break:break-all"></p>
+  </div>` : ""}
   <h2>Campaign progress</h2>
   <div id="funnels"><div class="skel skel-row"></div></div>
   <h2>Latest contributions</h2>
   <div id="contribs"><div class="skel skel-row"></div></div>`;
+
+  const invForm = document.getElementById("inviteform");
+  if (invForm) invForm.onsubmit = async e => {
+    e.preventDefault();
+    const out = document.getElementById("inv-out");
+    out.textContent = "";
+    try {
+      const r = await postJSON("/api/admin/invite",
+        {email: document.getElementById("inv-email").value.trim()});
+      out.innerHTML = `Send this link (single-use, expires in
+        ${r.expires_days} days):<br>
+        <code>${esc(location.origin + r.invite_path)}</code>`;
+    } catch (err) { out.textContent = err.message; }
+  };
 
   renderCampaignFunnels();
 

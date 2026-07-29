@@ -9,10 +9,15 @@ Idempotent-ish: refuses if a same-named campaign already exists.
 Document, name, and copy count are all configurable, so it works on a fresh
 clone with no external files (defaults to the app's own sample text):
 
-    ADMIN_EMAILS=you@example.org FF_FONT_PATH=... \\
+    FF_FONT_PATH=... \\
         FF_PROVISION_DOC=path/to/document.txt \\
         FF_PROVISION_NAME="Midterm A" FF_PROVISION_VARIANTS=300 \\
         python app/provision_campaign.py
+
+Runs in-process (no sockets, nothing served), so it uses local mode: the
+implicit local operator -- always an admin -- creates and owns the
+campaign. On a server-mode deployment any admin account can still manage
+it (share/funnel are owner-or-admin).
 """
 import os
 import sys
@@ -22,12 +27,9 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 REPO = os.path.dirname(HERE)
 sys.path.insert(0, HERE)
 
-ADMIN = os.environ.get("ADMIN_EMAILS", "").split(",")[0].strip()
-if not ADMIN:
-    sys.exit("set ADMIN_EMAILS to the campaign owner's email, e.g.\n"
-             "  ADMIN_EMAILS=you@example.org python app/provision_campaign.py")
-os.environ["ADMIN_EMAILS"] = ADMIN
-os.environ["FF_DEV_LOGIN"] = "1"          # in-process login shim only
+# In-process TestClient run: local mode's implicit operator is the admin
+# (no password needed; nothing is bound to any network interface).
+os.environ["FF_MODE"] = "local"
 os.environ.setdefault("FF_MAX_CAMPAIGN_VARIANTS", "300")
 
 DOC = os.environ.get("FF_PROVISION_DOC")    # optional .txt; else sample text
@@ -47,14 +49,13 @@ def main():
         content = render.SAMPLE_TEXT         # bundled, always present
         src = "built-in sample text"
     print(f"appdata:   {APPDATA}")
-    print(f"admin:     {ADMIN}")
     print(f"document:  {src} ({len(content.split())} words)")
 
     c = TestClient(app, raise_server_exceptions=True)
-    assert c.post("/auth/dev-login", json={"email": ADMIN}).status_code == 200
     me = c.get("/api/me").json()
     c.headers["X-CSRF-Token"] = me["csrf"]
-    assert me["is_admin"], f"{ADMIN} is not admin (check ADMIN_EMAILS)"
+    print(f"operator:  {me['email']}")
+    assert me["is_admin"], "the local-mode operator must be admin"
 
     for t in c.get("/api/tests").json():
         if t["name"] == NAME:

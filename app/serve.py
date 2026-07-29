@@ -5,7 +5,8 @@
     pip install -r app/requirements.txt
     python app/serve.py          ->  http://localhost:8765
 
-Flow: sign in with Google -> upload a PDF (or paste text) -> generate up to
+Flow: sign in (server mode: local email+password accounts; local mode: an
+implicit operator) -> upload a PDF (or paste text) -> generate up to
 FF_MAX_VARIANTS fingerprinted variants + one unmarked control -> print one
 variant -> photograph it -> upload the photo -> plain-language attribution
 verdict -> the contributor says Correct / Wrong (they know which variant
@@ -15,6 +16,7 @@ SQLite (engine/db.py).
 """
 import collections
 import datetime
+import ipaddress
 import json
 import logging
 import math
@@ -63,6 +65,81 @@ if not SECRET_KEY:
 app.add_middleware(SessionMiddleware, secret_key=SECRET_KEY,
                    same_site="lax", https_only=BASE_URL.startswith("https"))
 app.include_router(auth.router)
+
+
+# ---- deployment mode ----------------------------------------------------------
+def _is_loopback_host(host):
+    """True only for a host that is provably loopback ('localhost' or a
+    loopback IP literal). Anything unparsable is NOT loopback."""
+    host = (host or "").strip()
+    if host.lower() == "localhost":
+        return True
+    try:
+        return ipaddress.ip_address(host).is_loopback
+    except ValueError:
+        return False
+
+
+def resolve_mode():
+    """FF_MODE -> 'local' | 'server' (see MIGRATION.md).
+
+    local  = single operator on a loopback bind, no accounts (an implicit
+             admin); the bind is enforced by GuardedServer below.
+    server = network deployment with local email+password accounts.
+
+    An unset FF_MODE is accepted only when the configuration is
+    unambiguously local (loopback HOST, non-https BASE_URL); anything else
+    refuses to start rather than silently exposing an open app or silently
+    changing auth behavior."""
+    mode = (os.environ.get("FF_MODE") or "").strip().lower()
+    if mode == "hosted":
+        raise SystemExit("FF_MODE=hosted: hosted mode is not available in "
+                         "this build. Use FF_MODE=server.")
+    if mode in ("local", "server"):
+        return mode
+    if mode:
+        raise SystemExit(f"FF_MODE={mode!r} is not a mode; set FF_MODE=local "
+                         "or FF_MODE=server.")
+    host = os.environ.get("HOST", "127.0.0.1")
+    if BASE_URL.lower().startswith("https") or not _is_loopback_host(host):
+        raise SystemExit(
+            f"FF_MODE is not set, and HOST={host!r} / BASE_URL={BASE_URL!r} "
+            "looks like a network deployment. Set FF_MODE=server for a "
+            "network deployment; see MIGRATION.md. (FF_MODE=local is only "
+            "for a private run on this machine.)")
+    return "local"
+
+
+def _assert_loopback(addresses, mode):
+    """Local-mode bind guard, pure so the selftest can exercise it.
+
+    `addresses` are the getsockname() host strings of the REAL bound
+    sockets. Any non-loopback address -- or any ambiguity (no sockets, an
+    address that does not parse) -- is fatal, never permissive: local mode
+    must never serve beyond this machine."""
+    if mode != "local":
+        return
+    if not addresses:
+        raise SystemExit("local mode: no bound socket could be inspected; "
+                         "refusing to serve. Set FF_MODE=server for a "
+                         "network deployment (see MIGRATION.md).")
+    for addr in addresses:
+        try:
+            ip = ipaddress.ip_address(str(addr).split("%")[0])
+        except ValueError:
+            raise SystemExit(f"local mode: bound address {addr!r} is not a "
+                             "plain IP address; refusing to serve.")
+        if not ip.is_loopback:
+            raise SystemExit(f"local mode is loopback-only, but the server "
+                             f"is bound to {addr}. Set FF_MODE=server for a "
+                             "network deployment (see MIGRATION.md).")
+
+
+MODE = resolve_mode()
+auth.MODE = MODE                # auth branches on the resolved mode
+# ADMIN_EMAILS upgrade migration: flag every EXISTING user named there so
+# active admins keep admin; from now on it only seeds (never a live check).
+db.seed_admins_from_env(auth.ADMIN_EMAILS)
 
 MAX_VARIANTS = int(os.environ.get("FF_MAX_VARIANTS", 5))
 MAX_CAMPAIGN_VARIANTS = int(os.environ.get("FF_MAX_CAMPAIGN_VARIANTS", 300))
@@ -194,8 +271,8 @@ class FeedbackReq(BaseModel):
 @app.get("/api/config")
 def config():
     return {"max_variants": MAX_VARIANTS, "capture_enums": CAPTURE_ENUMS,
-            "oauth_configured": bool(os.environ.get("GOOGLE_CLIENT_ID")),
-            "dev_login": auth.DEV_LOGIN}
+            "mode": MODE,
+            "needs_setup": MODE == "server" and db.count_admins() == 0}
 
 
 @app.get("/api/sample")
@@ -221,7 +298,7 @@ def _pdf_worker(args, timeout):
     import subprocess
     import sys as _sys
     # Scrubbed environment: the child parses attacker bytes and must not
-    # inherit SECRET_KEY / GOOGLE_CLIENT_SECRET etc. FF_* is non-secret app
+    # inherit SECRET_KEY or other secrets. FF_* is non-secret app
     # config the engine reads (FF_APPDATA, FF_FONT_PATH). Env names are
     # case-insensitive on Windows, so match on upper().
     _KEEP = ("PATH", "PATHEXT", "SYSTEMROOT", "SYSTEMDRIVE", "WINDIR",
@@ -1020,6 +1097,31 @@ async def unhandled(request, exc):
 
 if __name__ == "__main__":
     import uvicorn
+
+    class GuardedServer(uvicorn.Server):
+        """uvicorn.Server that inspects the REAL bound sockets after the
+        bind: in local mode any non-loopback socket -- or a socket set that
+        cannot be inspected at all -- kills the process. Checking after the
+        bind (instead of trusting the requested host string) covers every
+        configuration path, including dual-stack and hostname binds."""
+
+        async def startup(self, sockets=None):
+            await super().startup(sockets=sockets)
+            if MODE != "local":
+                return
+            try:
+                addrs = [str(s.getsockname()[0])
+                         for srv in (self.servers or [])
+                         for s in (srv.sockets or [])]
+            except (OSError, IndexError, TypeError):
+                raise SystemExit("local mode: could not inspect the bound "
+                                 "sockets; refusing to serve. Set "
+                                 "FF_MODE=server for a network deployment.")
+            _assert_loopback(addrs, MODE)
+
+    # Local mode defaults to (and via the guard above, insists on) a
+    # loopback bind; server mode keeps the same default and the operator
+    # binds wider explicitly (the container sets HOST=0.0.0.0).
     host = os.environ.get("HOST", "127.0.0.1")
     port = int(os.environ.get("PORT", 8765))
     # Behind the shipped Caddy proxy the app port is NOT published (only
@@ -1030,6 +1132,9 @@ if __name__ == "__main__":
     trust_proxy = os.environ.get("FF_TRUST_PROXY") == "1"
     allow_ips = os.environ.get("FF_FORWARDED_ALLOW_IPS",
                                "*" if trust_proxy else "127.0.0.1")
-    print(f"Fingerprint Desk -> http://{host}:{port}")
-    uvicorn.run(app, host=host, port=port, log_level="warning",
-                proxy_headers=trust_proxy, forwarded_allow_ips=allow_ips)
+    print(f"Fingerprint Desk ({MODE} mode) -> http://{host}:{port}")
+    uv_config = uvicorn.Config(app, host=host, port=port,
+                               log_level="warning",
+                               proxy_headers=trust_proxy,
+                               forwarded_allow_ips=allow_ips)
+    GuardedServer(uv_config).run()

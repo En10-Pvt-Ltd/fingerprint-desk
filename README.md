@@ -67,6 +67,8 @@ will be published here with the raw corpus.
 
 ## Quick start
 
+**With Docker (server mode — accounts and invites):**
+
 ```bash
 git clone https://github.com/En10-Pvt-Ltd/fingerprint-desk
 cd fingerprint-desk
@@ -74,24 +76,24 @@ cp .env.example .env        # then set SECRET_KEY:  openssl rand -hex 32
 docker compose up -d
 ```
 
-The `.env.example` defaults are for **local evaluation** (`DOMAIN=localhost`,
-`BASE_URL=http://localhost`). Once the containers are up, open **http://localhost** — the
-bundled Caddy reverse proxy serves the app. (Running the server directly without Docker,
-`python app/serve.py`, serves it on http://localhost:8765.)
+Open **http://localhost** — the bundled Caddy reverse proxy serves the app. The first
+visit shows a **one-time setup screen**: create the administrator account (email +
+password). After that, sign in with it, click **Start a test**, press **No PDF handy? Use
+our sample text**, then **Create the marked copies**. Contributors get accounts via
+single-use invite links minted on the `/admin` page. The `.env.example` defaults
+(`DOMAIN=localhost`, `BASE_URL=http://localhost`) are for evaluating on your own machine.
 
-### Try it locally (no Google account)
+**Directly, without Docker (local mode — no accounts at all):**
 
-Sign-in on a public deployment uses Google OAuth, but for a local look there is a built-in
-dev sign-in:
+```bash
+pip install -r requirements.txt -r app/requirements.txt
+python app/serve.py         # -> http://localhost:8765
+```
 
-1. In `.env`, **uncomment `FF_DEV_LOGIN=1`** and set `ADMIN_EMAILS=` to any email you want to
-   use. Then apply the change — re-running `up -d` alone does **not** pick up `.env` edits:
-   ```bash
-   docker compose up -d --force-recreate
-   ```
-2. Open **http://localhost**, click **Start a test**, and sign in with that email.
-3. Press **No PDF handy? Use our sample text**, then **Create the marked copies**. You now
-   have several invisibly-different copies to download and print.
+With `FF_MODE` unset and the default loopback bind, the app runs in **local mode**: no
+sign-in, you are the single operator (with admin rights). Local mode refuses to serve on
+anything but loopback — to put the app on a network, set `FF_MODE=server` (Docker above
+does this for you).
 
 ### See a real decode in two minutes (no printer)
 
@@ -107,10 +109,11 @@ prints a GO / NO-GO line — proof the pipeline reads a genuine phone photo end 
 
 ### Deploying publicly
 
-Set `DOMAIN` and `BASE_URL` to your real domain (Caddy gets HTTPS automatically) and
-configure Google OAuth (`GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET`). An https `BASE_URL`
-or a set `GOOGLE_CLIENT_ID` automatically disables the dev sign-in, so it can never be live
-in production.
+Set `DOMAIN` and `BASE_URL` in `.env` to your real domain (Caddy gets HTTPS
+automatically); Docker deployments always run in server mode. Do the first-run setup
+immediately after the app comes up — until the admin account exists, anyone who reaches
+the URL could claim it. Accounts are invite-only after that. Upgrading from a version that
+used Google sign-in? See [MIGRATION.md](MIGRATION.md).
 
 ### Backing up (do not skip)
 

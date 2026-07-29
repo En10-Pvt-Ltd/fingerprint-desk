@@ -13,7 +13,8 @@ const esc = s => String(s ?? "").replace(/[&<>"']/g,
   c => ({"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"}[c]));
 
 let ME = null;      // {email, name, picture, is_admin, csrf} or null
-let CFG = {max_variants: 5, capture_enums: {}, oauth_configured: false};
+let CFG = {max_variants: 5, capture_enums: {}, mode: "server",
+           needs_setup: false};
 let LAST_TEST_RENDERED = null;   // avoid skeleton flash on poll re-renders
 let SHARE_WARNING = null;        // capacity_warning carried across a re-render
 
@@ -88,8 +89,11 @@ function renderNav() {
     <a href="#/new" class="btn btn-gold">Start a test</a>
     ${ME.is_admin ? `<a href="/admin">Admin</a>` : ""}
     <span class="muted small">${esc(ME.name || ME.email)}</span>
-    <a href="#" id="signout" class="muted small">sign out</a>`;
-  document.getElementById("signout").onclick = async e => {
+    ${CFG.mode === "local"
+      ? `<span class="muted small">local mode</span>`
+      : `<a href="#" id="signout" class="muted small">sign out</a>`}`;
+  const so = document.getElementById("signout");
+  if (so) so.onclick = async e => {
     e.preventDefault();
     try { await api("/auth/logout", {method: "POST"}); } catch (err) {}
     ME = null; renderNav(); location.hash = "#/"; viewSignin();
@@ -171,36 +175,45 @@ subtly while a scan beam sweeps across it">
       </form>
     </div>
     <div class="card" id="ownersignin" style="margin:0">
-      <p class="kicker">Campaign owners</p>
+      <p class="kicker">Campaign owners &amp; contributors</p>
       <h3 style="color:var(--ink)">Sign in to run tests</h3>
       <p class="muted small">Upload a document, generate marked copies, and
       recruit contributors.</p>
-      ${CFG.oauth_configured
-        ? `<div class="actionbar"><a class="btn btn-gold btn-lg"
-             href="/auth/login">Sign in with Google to start</a></div>`
-        : CFG.dev_login
-        ? `<form id="devlogin" class="rowline" style="margin-top:1rem">
-             <input type="email" id="devemail" placeholder="you@example.com"
-                    required style="flex:1;min-width:12rem">
-             <button class="btn btn-gold" type="submit">Sign in (local dev)</button>
+      ${CFG.mode === "local"
+        ? `<p class="note">This app is running in local mode — you are the
+           operator and are signed in automatically. If this message
+           persists, refresh the page.</p>`
+        : `<form id="loginform" style="margin-top:1rem">
+             <label class="f" for="li-email">Email</label>
+             <input type="email" id="li-email" required
+                    autocomplete="username" placeholder="you@example.org">
+             <label class="f" for="li-password">Password</label>
+             <input type="password" id="li-password" required
+                    autocomplete="current-password">
+             <div class="actionbar" style="margin-top:0.9rem">
+               <button class="btn btn-gold" type="submit">Sign in</button>
+             </div>
+             <p class="err small" id="li-err"></p>
            </form>
-           <p class="muted small">Local development sign-in — no password. This
-           form never appears on a production server.</p>`
-        : `<p class="note">Sign-in is not configured on this server yet.</p>`}
+           <p class="muted small">No account? Accounts are invite-only — ask
+           the researcher running this server for an invite link.</p>`}
       <p class="muted small" style="margin-top:1rem">We store your email (to
       count contributions), your uploaded documents and photos, and your
       correct/wrong answers. Only upload things you are comfortable sharing
       with the research team.</p>
     </div>
   </div>`;
-  const form = document.getElementById("devlogin");
-  if (form) form.onsubmit = async e => {
+  const loginForm = document.getElementById("loginform");
+  if (loginForm) loginForm.onsubmit = async e => {
     e.preventDefault();
+    const errBox = document.getElementById("li-err");
+    errBox.textContent = "";
     try {
-      await postJSON("/auth/dev-login",
-                     {email: document.getElementById("devemail").value});
+      await postJSON("/auth/login", {
+        email: document.getElementById("li-email").value.trim(),
+        password: document.getElementById("li-password").value});
       await boot();
-    } catch (err) { alert("dev sign-in failed: " + err.message); }
+    } catch (err) { errBox.textContent = err.message; }
   };
   /* smooth-scroll CTAs without touching location.hash (which would
      re-route) */
@@ -225,6 +238,83 @@ subtly while a scan beam sweeps across it">
       return;
     }
     location.hash = "#/pack/" + code;
+  };
+}
+
+/* ---------------- server mode: first-run setup + invites ---------------- */
+function viewSetup() {
+  view.innerHTML = `
+  <p class="kicker" style="margin-top:1.4rem">First run</p>
+  <h1 style="margin-top:0">Create the administrator account</h1>
+  <div class="card" style="max-width:30rem">
+    <p class="muted small">This is a fresh server. The account you create
+    here is the administrator: it owns campaigns, invites contributors and
+    can export the corpus. Pick a strong password — there is no password
+    reset yet.</p>
+    <form id="setupform">
+      <label class="f" for="su-email">Email</label>
+      <input type="email" id="su-email" required autocomplete="username"
+             placeholder="you@example.org">
+      <label class="f" for="su-password">Password (8+ characters)</label>
+      <input type="password" id="su-password" required minlength="8"
+             autocomplete="new-password">
+      <div class="actionbar">
+        <button class="btn btn-gold btn-lg" type="submit">Create admin
+          account</button>
+      </div>
+      <p class="err small" id="su-err"></p>
+    </form>
+  </div>`;
+  document.getElementById("setupform").onsubmit = async e => {
+    e.preventDefault();
+    const errBox = document.getElementById("su-err");
+    errBox.textContent = "";
+    try {
+      await postJSON("/auth/setup", {
+        email: document.getElementById("su-email").value.trim(),
+        password: document.getElementById("su-password").value});
+      location.hash = "#/";
+      await boot();
+    } catch (err) { errBox.textContent = err.message; }
+  };
+}
+
+function viewInvite(token) {
+  if (ME) {
+    view.innerHTML = `<div class="card"><p>You are already signed in as
+      <strong>${esc(ME.email)}</strong>. Sign out first to accept an invite
+      for a different account.</p>
+      <a class="btn btn-gold" href="#/">Back to the start</a></div>`;
+    return;
+  }
+  view.innerHTML = `
+  <p class="kicker" style="margin-top:1.4rem">You're invited</p>
+  <h1 style="margin-top:0">Join ${esc(APP_NAME)}</h1>
+  <div class="card" style="max-width:30rem">
+    <p class="muted small">Choose a password to create your contributor
+    account. The invite link is single-use and expires after a few
+    days.</p>
+    <form id="inviteform">
+      <label class="f" for="iv-password">Password (8+ characters)</label>
+      <input type="password" id="iv-password" required minlength="8"
+             autocomplete="new-password">
+      <div class="actionbar">
+        <button class="btn btn-gold btn-lg" type="submit">Create my
+          account</button>
+      </div>
+      <p class="err small" id="iv-err"></p>
+    </form>
+  </div>`;
+  document.getElementById("inviteform").onsubmit = async e => {
+    e.preventDefault();
+    const errBox = document.getElementById("iv-err");
+    errBox.textContent = "";
+    try {
+      await postJSON("/auth/accept-invite", {
+        token, password: document.getElementById("iv-password").value});
+      location.hash = "#/";
+      await boot();
+    } catch (err) { errBox.textContent = err.message; }
   };
 }
 
@@ -1386,9 +1476,14 @@ function renderLog(m) {
 async function route() {
   const h = location.hash.replace(/^#\/?/, "");
   try {
+    // Fresh server: everything routes to first-run setup until the first
+    // admin exists (the anonymous pack flow stays reachable).
+    if (CFG.needs_setup && !h.startsWith("pack/")) return viewSetup();
     if (!h) await viewHome();
     else if (h === "new") viewNew();
-    else if (h.startsWith("pack/")) {
+    else if (h.startsWith("invite/")) {
+      viewInvite(h.split("/")[1]);           // pre-auth by design
+    } else if (h.startsWith("pack/")) {
       await viewPack(h.split("/")[1]);       // anonymous — no sign-in gate
     } else if (h.startsWith("test/")) {
       const [, id, sub] = h.split("/");

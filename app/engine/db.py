@@ -26,7 +26,15 @@ CREATE TABLE IF NOT EXISTS users(
   name TEXT,
   picture TEXT,
   created_utc TEXT NOT NULL,
-  is_admin INTEGER NOT NULL DEFAULT 0);
+  is_admin INTEGER NOT NULL DEFAULT 0,
+  password_hash TEXT,
+  auth_kind TEXT);
+CREATE TABLE IF NOT EXISTS invites(
+  token TEXT PRIMARY KEY,
+  email TEXT NOT NULL,
+  created_utc TEXT NOT NULL,
+  used_utc TEXT,
+  invited_by INTEGER REFERENCES users(id));
 CREATE TABLE IF NOT EXISTS tests(
   test_id TEXT PRIMARY KEY,
   user_id INTEGER NOT NULL REFERENCES users(id),
@@ -93,6 +101,14 @@ def _migrate(c):
         with c:
             c.execute("ALTER TABLE tests ADD COLUMN assign_mode INTEGER"
                       " NOT NULL DEFAULT 0")
+    # Local-account auth (additive; older code simply ignores these).
+    ucols = {r["name"] for r in c.execute("PRAGMA table_info(users)")}
+    if "password_hash" not in ucols:
+        with c:
+            c.execute("ALTER TABLE users ADD COLUMN password_hash TEXT")
+    if "auth_kind" not in ucols:
+        with c:
+            c.execute("ALTER TABLE users ADD COLUMN auth_kind TEXT")
 
 
 def _now():
@@ -101,6 +117,10 @@ def _now():
 
 
 # ---- users --------------------------------------------------------------------
+# The google_sub column predates local accounts and is kept (schema is
+# additive) but repurposed as a generic auth subject: password accounts use
+# 'local:<email>', the local-mode operator uses 'implicit', and historical
+# Google accounts keep their original Google sub.
 def upsert_user(google_sub, email, name=None, picture=None):
     c = conn()
     with c:
@@ -122,6 +142,101 @@ def get_user_by_sub(google_sub):
     r = conn().execute("SELECT * FROM users WHERE google_sub=?",
                        (google_sub,)).fetchone()
     return dict(r) if r else None
+
+
+def get_user_by_email(email):
+    r = conn().execute("SELECT * FROM users WHERE lower(email)=?",
+                       ((email or "").strip().lower(),)).fetchone()
+    return dict(r) if r else None
+
+
+def create_local_user(email, password_hash, is_admin=0):
+    """Password account (server mode); auth subject 'local:<email>'."""
+    email = email.strip().lower()
+    sub = "local:" + email
+    with conn() as c:
+        c.execute("INSERT INTO users(google_sub, email, created_utc,"
+                  " is_admin, password_hash, auth_kind)"
+                  " VALUES(?,?,?,?,?,'local')",
+                  (sub, email, _now(), 1 if is_admin else 0, password_hash))
+    return get_user_by_sub(sub)
+
+
+def ensure_implicit_user():
+    """Local mode's single operator account (subject 'implicit'), created
+    on first need and always an admin."""
+    u = get_user_by_sub("implicit")
+    if u is None:
+        with conn() as c:
+            c.execute("INSERT OR IGNORE INTO users(google_sub, email, name,"
+                      " created_utc, is_admin, auth_kind)"
+                      " VALUES('implicit','operator@localhost',"
+                      " 'Local operator',?,1,'implicit')", (_now(),))
+        u = get_user_by_sub("implicit")
+    if u and not u["is_admin"]:
+        set_admin(u["id"])
+        u = get_user(u["id"])
+    return u
+
+
+def set_password(user_id, password_hash):
+    with conn() as c:
+        c.execute("UPDATE users SET password_hash=? WHERE id=?",
+                  (password_hash, user_id))
+
+
+def count_admins():
+    r = conn().execute("SELECT COUNT(*) n FROM users"
+                       " WHERE is_admin=1").fetchone()
+    return r["n"]
+
+
+def set_admin(user_id):
+    with conn() as c:
+        c.execute("UPDATE users SET is_admin=1 WHERE id=?", (user_id,))
+
+
+def seed_admins_from_env(admin_emails):
+    """Upgrade migration, run once at startup: ADMIN_EMAILS used to be a
+    live admin oracle; it is now only a seed. Grant the persistent
+    users.is_admin flag to every EXISTING user named in it, so active
+    admins keep admin across the upgrade. New signups are never elevated
+    by this (see auth._bootstrap_admin for the only other seed path)."""
+    emails = {e.strip().lower() for e in (admin_emails or ())
+              if e and e.strip()}
+    if not emails:
+        return 0
+    n = 0
+    c = conn()
+    with c:
+        for e in sorted(emails):
+            n += c.execute("UPDATE users SET is_admin=1"
+                           " WHERE lower(email)=? AND is_admin=0",
+                           (e,)).rowcount
+    return n
+
+
+# ---- invites (server-mode local accounts) -------------------------------------
+def create_invite(token, email, invited_by):
+    with conn() as c:
+        c.execute("INSERT INTO invites(token, email, created_utc,"
+                  " invited_by) VALUES(?,?,?,?)",
+                  (token, email, _now(), invited_by))
+
+
+def get_invite(token):
+    r = conn().execute("SELECT * FROM invites WHERE token=?",
+                       (token,)).fetchone()
+    return dict(r) if r else None
+
+
+def consume_invite(token):
+    """Mark the invite used; True only for the caller that actually
+    consumed it (atomic single-use)."""
+    with conn() as c:
+        cur = c.execute("UPDATE invites SET used_utc=? WHERE token=?"
+                        " AND used_utc IS NULL", (_now(), token))
+        return cur.rowcount == 1
 
 
 # ---- tests / ownership --------------------------------------------------------

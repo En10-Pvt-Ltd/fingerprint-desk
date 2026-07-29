@@ -7,14 +7,19 @@ surface (FastAPI TestClient, no server process needed).
 
 Covers the research-pipeline checks (layout preview -> create/generate ->
 commitment verify -> simulated leaks -> real-capture regression -> PDF
-modes) plus the public-app layer: auth gating, CSRF, per-user ownership,
-gated file serving (ground-truth metas never servable), the 5-variant cap,
-quotas, correct/wrong feedback, shared campaigns, assigned campaigns
-(join/assignment isolation/funnel/capacity warning), and the corpus export.
+modes) plus the public-app layer: server-mode auth (first-run setup, local
+email+password login with generic failures, bad-login rate limiting,
+single-use invites), the local-mode loopback guard helper, CSRF, per-user
+ownership, gated file serving (ground-truth metas never servable), the
+5-variant cap, quotas, correct/wrong feedback, shared campaigns, assigned
+campaigns (join/assignment isolation/funnel/capacity warning), and the
+corpus export.
 
-Runs against a throwaway FF_APPDATA so repeated runs never trip quotas or
-pollute real data. Repo fixtures (received.jpeg, appdata/m1 corpus PDF) are
-read from the repo itself.
+Runs the app in SERVER mode (FF_MODE=server): the first-run setup creates
+the admin, and every further account is created through the invite flow --
+exactly like a real deployment. Runs against a throwaway FF_APPDATA so
+repeated runs never trip quotas or pollute real data. Repo fixtures
+(received.jpeg, appdata/m1 corpus PDF) are read from the repo itself.
 """
 import json
 import os
@@ -31,19 +36,22 @@ sys.path.insert(0, HERE)
 # ---- environment before any engine/serve import -------------------------------
 WORKDIR = tempfile.mkdtemp(prefix="ff-selftest-")
 os.environ["FF_APPDATA"] = os.path.join(WORKDIR, "appdata")
-os.environ["FF_DEV_LOGIN"] = "1"
+os.environ["FF_MODE"] = "server"
 os.environ["ADMIN_EMAILS"] = "admin@selftest.local,admin2@selftest.local"
 os.environ["FF_QUOTA_TESTS_PER_DAY"] = "2"
 os.environ["FF_UPLOADS_PER_MIN"] = "100"
+os.environ["FF_LOGINS_PER_MIN"] = "5"      # small so the cap is testable
 os.environ["FF_PACK_MAX_CAPTURES"] = "3"   # small so the cap is testable
 os.environ.setdefault(
     "FF_FONT_PATH", "/usr/share/fonts/truetype/dejavu/DejaVuSerif.ttf")
 
 from fastapi.testclient import TestClient   # noqa: E402
-from serve import app                       # noqa: E402
+from serve import app, _assert_loopback     # noqa: E402
 from engine import store, render, scan, db  # noqa: E402
+import auth                                 # noqa: E402
 
 PASS = 0
+PASSWORD = "selftest-pass-123"
 
 
 def ok(cond, label, detail=""):
@@ -55,13 +63,39 @@ def ok(cond, label, detail=""):
     print(f"  ok    {label}{('  ' + detail) if detail else ''}")
 
 
-def login(email):
-    c = TestClient(app, raise_server_exceptions=True)
-    r = c.post("/auth/dev-login", json={"email": email})
-    assert r.status_code == 200, r.text
+def _fresh_client():
+    return TestClient(app, raise_server_exceptions=True)
+
+
+def _csrf(c):
     me = c.get("/api/me").json()
     c.headers["X-CSRF-Token"] = me["csrf"]
-    return c, me
+    return me
+
+
+def login(email, password=PASSWORD):
+    # Every TestClient shares one client IP, so drain the login rate-limit
+    # buckets before each intentional login (the cap itself is exercised in
+    # its own section below).
+    auth._buckets.clear()
+    c = _fresh_client()
+    r = c.post("/auth/login", json={"email": email, "password": password})
+    assert r.status_code == 200, r.text
+    return c, _csrf(c)
+
+
+def make_user(admin_client, email, password=PASSWORD):
+    """The server-mode way to create an account: admin invite + accept.
+    Returns a logged-in client with the CSRF header set."""
+    auth._buckets.clear()
+    r = admin_client.post("/api/admin/invite", json={"email": email})
+    assert r.status_code == 200, r.text
+    token = r.json()["invite_path"].split("/")[-1]
+    c = _fresh_client()
+    r = c.post("/auth/accept-invite",
+               json={"token": token, "password": password})
+    assert r.status_code == 200, r.text
+    return c, _csrf(c)
 
 
 def wait_generated(c, tid, timeout=300):
@@ -76,16 +110,120 @@ def wait_generated(c, tid, timeout=300):
     sys.exit("generation timed out")
 
 
-print("[0] auth gating")
+print("[0] server-mode first-run setup + auth gating")
 anon = TestClient(app, raise_server_exceptions=True)
 ok(anon.get("/api/tests").status_code == 401, "unauthenticated -> 401")
-ok(anon.get("/api/config").status_code == 200, "public config reachable")
-client, me = login("admin@selftest.local")
-ok(me["is_admin"], "ADMIN_EMAILS grants admin")
-bad = TestClient(app, raise_server_exceptions=True)
-bad.post("/auth/dev-login", json={"email": "nocsrf@selftest.local"})
+r = anon.get("/api/config")
+ok(r.status_code == 200, "public config reachable")
+cfg = r.json()
+ok(cfg["mode"] == "server" and cfg["needs_setup"] is True,
+   "fresh server reports mode=server, needs_setup", json.dumps(cfg))
+ok("dev_login" not in cfg and "oauth_configured" not in cfg,
+   "config no longer advertises dev-login/oauth")
+ok(anon.post("/auth/dev-login",
+             json={"email": "x@y.z"}).status_code in (404, 405),
+   "dev-login shim is gone")
+r = anon.post("/auth/setup", json={"email": "admin@selftest.local",
+                                   "password": "short"})
+ok(r.status_code == 400, "setup rejects a too-short password")
+client = _fresh_client()
+r = client.post("/auth/setup", json={"email": "admin@selftest.local",
+                                     "password": PASSWORD})
+ok(r.status_code == 200, "first-run setup creates the admin", r.text[:120])
+me = _csrf(client)
+ok(me["is_admin"], "setup account is admin")
+ok(db.count_admins() == 1, "exactly one admin exists after setup")
+r = _fresh_client().post("/auth/setup",
+                         json={"email": "second@selftest.local",
+                               "password": PASSWORD})
+ok(r.status_code == 409, "second setup refused once an admin exists")
+ok(anon.get("/api/config").json()["needs_setup"] is False,
+   "needs_setup clears after setup")
+
+print("[0b] login: success + generic failure")
+client2, me2 = login("admin@selftest.local")
+ok(me2["email"] == "admin@selftest.local" and me2["is_admin"],
+   "email+password login works")
+r = _fresh_client().post("/auth/login",
+                         json={"email": "admin@selftest.local",
+                               "password": "wrong-password-xx"})
+ok(r.status_code == 401 and r.json()["detail"] == "invalid email or password",
+   "wrong password -> generic 401")
+r = _fresh_client().post("/auth/login",
+                         json={"email": "ghost@selftest.local",
+                               "password": PASSWORD})
+ok(r.status_code == 401 and r.json()["detail"] == "invalid email or password",
+   "unknown email -> the SAME generic 401 (no user enumeration)")
+bad = _fresh_client()
+bad.post("/auth/login", json={"email": "admin@selftest.local",
+                              "password": PASSWORD})
 r = bad.post("/api/layout", json={"content": "x y z"})
 ok(r.status_code == 403, "POST without CSRF header -> 403")
+
+print("[0c] bad-login rate limiting")
+auth._buckets.clear()
+rl = _fresh_client()
+codes = [rl.post("/auth/login", json={"email": "rl@selftest.local",
+                                      "password": "bad"}).status_code
+         for _ in range(6)]
+ok(codes[:5] == [401] * 5 and codes[5] == 429,
+   "6th bad login inside a minute -> 429 (cap 5)", str(codes))
+auth._buckets.clear()
+
+print("[0d] invites: create -> accept -> non-admin account")
+r = client.post("/api/admin/invite", json={"email": "invitee@selftest.local"})
+ok(r.status_code == 200 and "/#/invite/" in r.json()["invite_path"],
+   "admin mints an invite link", str(r.json())[:120])
+inv_token = r.json()["invite_path"].split("/")[-1]
+r = _fresh_client().post("/auth/accept-invite",
+                         json={"token": "bogus-token", "password": PASSWORD})
+ok(r.status_code == 400, "bogus invite token -> generic 400")
+inv_c = _fresh_client()
+r = inv_c.post("/auth/accept-invite",
+               json={"token": inv_token, "password": PASSWORD})
+ok(r.status_code == 200, "invite accepted, user signed in", r.text[:120])
+ime = _csrf(inv_c)
+ok(ime["email"] == "invitee@selftest.local" and not ime["is_admin"],
+   "invited user is a non-admin")
+r = _fresh_client().post("/auth/accept-invite",
+                         json={"token": inv_token, "password": PASSWORD})
+ok(r.status_code == 400, "invite is single-use")
+ok(inv_c.get("/api/admin/stats").status_code == 403,
+   "non-admin blocked from an admin route")
+ok(inv_c.post("/api/admin/invite",
+              json={"email": "x@y.z"}).status_code == 403,
+   "non-admin cannot mint invites")
+# Expired invite: backdate created_utc directly in the DB.
+_admin_id = db.get_user_by_email("admin@selftest.local")["id"]
+db.create_invite("expired-token-selftest", "late@selftest.local", _admin_id)
+with db.conn() as _c:
+    _c.execute("UPDATE invites SET created_utc=? WHERE token=?",
+               ("2000-01-01T00:00:00+00:00", "expired-token-selftest"))
+r = _fresh_client().post("/auth/accept-invite",
+                         json={"token": "expired-token-selftest",
+                               "password": PASSWORD})
+ok(r.status_code == 400, "expired invite -> generic 400")
+auth._buckets.clear()
+
+print("[0e] local-mode loopback guard helper")
+
+
+def _guard_exits(addrs, mode):
+    try:
+        _assert_loopback(addrs, mode)
+        return False
+    except SystemExit:
+        return True
+
+
+ok(_guard_exits(["0.0.0.0"], "local"), "0.0.0.0 in local mode is fatal")
+ok(not _guard_exits(["127.0.0.1"], "local"), "127.0.0.1 passes")
+ok(not _guard_exits(["::1"], "local"), "::1 passes")
+ok(_guard_exits([], "local"), "empty socket list is fatal (ambiguity)")
+ok(_guard_exits(["not-an-ip"], "local"), "unparsable address is fatal")
+ok(_guard_exits(["127.0.0.1", "10.0.0.5"], "local"),
+   "one non-loopback socket among loopbacks is fatal")
+ok(not _guard_exits(["0.0.0.0"], "server"), "server mode is not guarded")
 
 print("[1] layout preview")
 r = client.post("/api/layout", json={"content": render.SAMPLE_TEXT})
@@ -114,7 +252,7 @@ for d in m["docs"]:
 ok(True, "all page PNGs + metas on disk")
 ok(bool(m["commitment"]["sha256"]), "commitment sealed",
    m["commitment"]["sha256"][:16] + "...")
-plain, _ = login("plain-user@selftest.local")
+plain, _ = make_user(client, "plain-user@selftest.local")
 r = plain.post("/api/tests", json={
     "name": "Too many", "content": render.SAMPLE_TEXT,
     "variant_labels": [f"V{i}" for i in range(6)], "n_controls": 1})
@@ -183,7 +321,7 @@ r = client.get(f"/api/files/{tid}/../../secrets")
 ok(r.status_code in (404, 422), "path traversal rejected")
 
 print("[8] ownership: another user sees nothing")
-other, _ = login("someone-else@selftest.local")
+other, _ = make_user(client, "someone-else@selftest.local")
 ok(other.get(f"/api/tests/{tid}").status_code == 404,
    "other user's GET test -> 404")
 ok(other.get(f"/api/tests/{tid}/pdf/v1").status_code == 404,
@@ -209,7 +347,7 @@ dry_manifest = {
               "marked": True,
               "pages": [{"page_index": 0, "n_lines": meta["n_lines"]}]}]}
 store.save_manifest(dry_manifest)
-db.add_test(dry_id, me_id := db.get_user_by_sub("dev-admin@selftest.local")["id"],
+db.add_test(dry_id, db.get_user_by_email("admin@selftest.local")["id"],
             "rendered", 1, status="generated")
 
 res = scan.run_scan(dry_manifest, os.path.join(REPO, "received.jpeg"),
@@ -253,6 +391,13 @@ ok(fb and fb["true_doc_id"] == "v1",
 ok(os.path.exists(os.path.join(store.scans_dir(dry_id), sid,
                                "feedback.json")),
    "feedback.json mirrored next to the scan")
+# Ownership isolation extends to scans: another user can neither fetch the
+# uploaded capture image nor touch its feedback.
+ok(other.get(f"/api/files/{dry_id}/scans/{sid}/input.jpeg").status_code
+   == 404, "other user's fetch of someone's scan image -> 404")
+r = other.post(f"/api/tests/{dry_id}/scans/{sid}/feedback",
+               json={"judgment": "correct"})
+ok(r.status_code == 404, "other user's feedback on someone's scan -> 404")
 
 print("[9b] margin rule, resolution gate, pooled per-contributor verdict")
 # Margin rule: both wrong-variant cases from the 300-variant simulation
@@ -523,7 +668,7 @@ r = client.post("/api/extract-pdf",
                 files={"file": ("scan.pdf", scan_src, "application/pdf")})
 ok(r.status_code == 400 and "scanned" in r.json()["detail"],
    "text extraction still refuses an image-only PDF")
-rc, _ = login("raster-user@selftest.local")
+rc, _ = make_user(client, "raster-user@selftest.local")
 r = rc.post("/api/analyze-pdf",
             files={"file": ("scan.pdf", scan_src, "application/pdf")})
 ok(r.status_code == 200 and r.json().get("mode") == "pdf_raster",
@@ -715,8 +860,21 @@ ok(stats["feedback"].get("correct") == 1, "stats count the feedback",
    json.dumps(stats["feedback"]))
 
 print("[15] assigned campaign")
-admin2, a2 = login("admin2@selftest.local")
-ok(a2["is_admin"], "second admin recognized")
+# A second admin: created like any contributor (invite), then promoted via
+# the db helper -- ADMIN_EMAILS no longer elevates once an admin exists.
+admin2, _ = make_user(client, "admin2@selftest.local")
+# Escalation regression: admin2's email is in ADMIN_EMAILS and an admin
+# (admin@selftest.local) already exists. ADMIN_EMAILS must NOT be a live
+# admin oracle -- admin2 stays a normal user until db.set_admin runs.
+a2_pre = admin2.get("/api/me").json()
+ok(not a2_pre["is_admin"],
+   "ADMIN_EMAILS is not a live oracle: email in ADMIN_EMAILS is NOT admin "
+   "while an admin already exists")
+ok(admin2.get("/api/admin/stats").status_code == 403,
+   "that same account is blocked (403) from an admin-only route")
+db.set_admin(db.get_user_by_email("admin2@selftest.local")["id"])
+a2 = admin2.get("/api/me").json()
+ok(a2["is_admin"], "second admin (db.set_admin) recognized")
 r = admin2.post("/api/tests", json={
     "name": "Assigned Campaign", "content": render.SAMPLE_TEXT,
     "variant_labels": ["Copy A", "Copy B", "Copy C"], "n_controls": 1})
@@ -741,10 +899,10 @@ r = admin2.post("/api/tests", json={
     "variant_labels": [f"V{i}" for i in range(301)], "n_controls": 1})
 ok(r.status_code == 400, "301 variants -> 400 (admin cap is 300)")
 
-c1, _ = login("contrib1@selftest.local")
-c2, _ = login("contrib2@selftest.local")
-c3, _ = login("contrib3@selftest.local")
-c4, _ = login("contrib4@selftest.local")
+c1, _ = make_user(client, "contrib1@selftest.local")
+c2, _ = make_user(client, "contrib2@selftest.local")
+c3, _ = make_user(client, "contrib3@selftest.local")
+c4, _ = make_user(client, "contrib4@selftest.local")
 m0 = c1.get(f"/api/tests/{atid}").json()
 ok(m0["assign_mode"] is True and m0["my_assignment"] is None
    and m0["docs"] == [], "pre-join manifest: assign_mode set, no docs")

@@ -50,7 +50,9 @@ removal attacks that a normal recipient could perform are still worth reporting.
 
 ## Deployment hardening reminders
 
-- Set a strong `SECRET_KEY`; never ship the dev sign-in shim (`FF_DEV_LOGIN`) in production.
+- Set a strong `SECRET_KEY`; run network deployments with `FF_MODE=server` (local mode is
+  loopback-only and unauthenticated by design), and complete the first-run admin setup
+  immediately after the app first comes up.
 - Keep the app port unpublished and terminate TLS at the bundled proxy; set
   `FF_TRUST_PROXY=1` so rate limits key on the real client IP.
 - Back up `/data` (SQLite + sealed commitments) — it holds all tracing ability. Losing that
