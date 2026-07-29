@@ -15,10 +15,9 @@ Step 2 emits the envelope in the clear (encryption is added in step 3). The
 
 Seal kind (see docs/threat-model.md):
   - "pre-distribution": the recipient mapping was fixed and bound BEFORE any
-    copy was distributed. Proves the mapping predates the leak. Requires a
-    roster fixed at creation -- the Phase 4 feature -- so it is NOT reachable
-    yet: assignments are currently made on join (first-come-first-served), so
-    there is no pre-distribution roster to bind.
+    copy was distributed. Proves the mapping predates the leak. Produced by a
+    roster campaign (a fixed list/CSV of recipients, or a count pattern), where
+    the mapping is set at creation.
   - "snapshot": the mapping as it stood when the key/receipt was made. Proves
     who held which copy at that moment, not that it predates distribution. This
     is the only seal a campaign can carry today.
@@ -51,9 +50,9 @@ SEAL_EXPLAIN = {
         "distributed, so it cannot have been altered after a leak appeared.",
     SEAL_SNAPSHOT:
         "Proves the recipient mapping as it stood when this was made. It does "
-        "NOT prove the mapping predates distribution -- a 'pre-distribution' "
-        "seal (which does) needs a roster fixed at creation and is not "
-        "available for campaigns created before that feature exists.",
+        "NOT prove the mapping predates distribution -- for that, create the "
+        "campaign from a roster (a fixed list of recipients or a count "
+        "pattern), which seals pre-distribution.",
 }
 
 

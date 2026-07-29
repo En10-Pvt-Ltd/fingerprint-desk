@@ -32,13 +32,25 @@ copy* — carries one of two seal kinds, and they prove different things:
 | `pre-distribution`  | The recipient mapping was fixed and bound **before any copy was distributed** — so it provably predates any leak. |
 | `snapshot`          | The recipient mapping **as it stood when the key/receipt was made**. Proves who held which copy at that moment; it does **not** prove the mapping predates distribution. |
 
-**Campaigns created before the roster feature can only be sealed as `snapshot`.** The exact
-reason: in this build, copies are assigned to recipients **on join, first-come-first-served** —
-there is no roster fixed at creation, so there is no pre-distribution mapping to bind. A
-`pre-distribution` seal becomes available only once a campaign can be created from a fixed
-roster (a later release). The format supports both kinds today; live campaigns emit `snapshot`.
+**Which campaigns get which seal:**
+
+- **Roster campaigns** — created from a fixed roster (an explicit list/CSV of recipients) or a
+  count pattern — bind the copy→recipient mapping at creation, before any copy is distributed,
+  and seal **`pre-distribution`**. The key header records `roster_mode` (`"roster"` | `"count"`).
+- **Join campaigns** — where contributors claim copies over time (first-come-first-served) —
+  cannot know the mapping until people join, so the mapping bound at export can only be a
+  **`snapshot`**. Treat a snapshot as corroborating, not as proof the recipient link predates
+  the leak.
+
 The seal kind is bound *into* the keyed digest (below), so a `snapshot` can never be
 misrepresented as a `pre-distribution` seal.
+
+**Count-mode rosters — one unsealed link.** A `roster`-mode campaign binds copy→*real
+recipient* (the name/email you supplied). A `count`-mode campaign binds copy→*generated label*
+(e.g. `Centre-1`); the map from that label to a real centre lives in the issuer's own record
+and is **not** covered by this commitment — `roster_mode: "count"` in the header marks exactly
+this. Both are `pre-distribution` (the mapping is genuinely fixed at creation), but the count
+form has one link a third party must take on the issuer's word.
 
 ## Canonicalisation (the one rule everything depends on)
 

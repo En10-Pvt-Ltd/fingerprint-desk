@@ -67,11 +67,19 @@ hold, because they do not prove the same thing:
     who held which copy at that time; it does **not** prove the mapping predates distribution,
     and an adversary can argue the mapping was altered after the fact.
 
-  A `snapshot` is all a campaign can carry today: copies are assigned on join
-  (first-come-first-served), so there is no pre-distribution roster to bind. Treat a snapshot
-  mapping as corroborating, not as proof that the recipient link predates the leak. The seal
-  kind is bound into the digest and printed on the recovery key and receipt; the exact format
-  is in [recovery-key-format.md](recovery-key-format.md).
+  Which kind a campaign carries follows from how its recipients are set:
+  - **Roster campaigns** (a fixed list/CSV of recipients, or a count pattern) bind the mapping
+    at creation, before distribution, and seal `pre-distribution`.
+  - **Join campaigns** (contributors claim copies over time, first-come-first-served) cannot
+    know the mapping until people join, so they can only seal `snapshot`. Treat a snapshot as
+    corroborating, not as proof the recipient link predates the leak.
+
+  One caveat even for a pre-distribution seal: a **count**-mode roster binds copy→*generated
+  label* (e.g. `Centre-1`), and the label→real-centre map is the issuer's own record, **not**
+  sealed here — the `roster_mode: "count"` header marks it. A **roster**-mode campaign binds
+  copy→*real recipient*, with no such external link. The seal kind is bound into the digest and
+  printed on the recovery key and receipt; the exact format is in
+  [recovery-key-format.md](recovery-key-format.md).
 
 ## Operator trust boundary
 
