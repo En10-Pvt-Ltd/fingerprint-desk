@@ -29,7 +29,7 @@ import traceback
 
 from fastapi import (Depends, FastAPI, File, Form, HTTPException, Request,
                      UploadFile)
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import FileResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 from starlette.concurrency import run_in_threadpool
 from starlette.middleware.sessions import SessionMiddleware
@@ -40,7 +40,8 @@ import uvicorn
 import secrets
 
 from engine import (APPDATA, REPO, store, render, scan, channel_sim,
-                    render_pdf, scan_pdf, scan_raster, db, jobs, packs)
+                    render_pdf, scan_pdf, scan_raster, db, jobs, packs,
+                    recovery)
 import auth
 
 
@@ -704,6 +705,52 @@ def verify(test_id: str, user=Depends(require_user)):
             "stored": stored, "recomputed": recomputed,
             "match": recomputed == stored,
             "committed_utc": c["committed_utc"]}
+
+
+# ---- recovery key (per-campaign export) --- owner/admin only (ground truth) ----
+def _recovery_manifest(test_id, user):
+    m = _manifest(test_id, user)            # allow_shared=False: not contributors
+    if m.get("status") != "generated":
+        raise HTTPException(409, "test not generated")
+    return m
+
+
+@app.get("/api/tests/{test_id}/recovery-info")
+def recovery_info_route(test_id: str, user=Depends(require_user)):
+    """Seal kind (plain language) + counts + digests for the export UI, without
+    serving the ground-truth payload."""
+    m = _recovery_manifest(test_id, user)
+    try:
+        return recovery.recovery_info(test_id, m)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+
+
+@app.get("/api/tests/{test_id}/recovery-key")
+def recovery_key_route(test_id: str, user=Depends(require_user)):
+    """Download the self-contained recovery key (<test_id>.fdkey.json)."""
+    m = _recovery_manifest(test_id, user)
+    try:
+        env = recovery.build_envelope(test_id, m)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    body = json.dumps(env, indent=1).encode("utf-8")
+    return Response(content=body, media_type="application/json",
+                    headers={"Content-Disposition":
+                             f'attachment; filename="{test_id}.fdkey.json"'})
+
+
+@app.get("/api/tests/{test_id}/receipt")
+def receipt_route(test_id: str, user=Depends(require_user)):
+    """Download the small commitment receipt (<test_id>-receipt.txt)."""
+    m = _recovery_manifest(test_id, user)
+    try:
+        text = recovery.build_receipt(test_id, m)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    return Response(content=text.encode("utf-8"), media_type="text/plain",
+                    headers={"Content-Disposition":
+                             f'attachment; filename="{test_id}-receipt.txt"'})
 
 
 @app.get("/api/tests/{test_id}/pdf/{doc_id}")

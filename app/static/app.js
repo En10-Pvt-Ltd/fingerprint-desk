@@ -1010,6 +1010,7 @@ function renderPrintStep(m) {
   </div>
   <div class="docgrid" style="margin-top:1rem">${cards}</div>
   ${ownerHTML}
+  ${recoveryPanelHTML(m)}
   <div class="actionbar">
     <a class="btn btn-gold btn-lg" href="#/test/${esc(m.test_id)}/photo">
       I've printed a page — continue</a>
@@ -1017,6 +1018,7 @@ function renderPrintStep(m) {
       Past photos (${m.scans.length})</a>` : ""}
   </div>`;
   wireOwnerPanel(m);
+  wireRecoveryPanel(m);
 }
 
 function renderAssignedPrintStep(m) {
@@ -1109,6 +1111,54 @@ function ownerPanelHTML(m) {
     </div>
     <div id="share-warn"></div>
   </div>`;
+}
+
+/* -------------- owner: recovery key & commitment receipt -------------- */
+function recoveryPanelHTML(m) {
+  if (!m.is_owner) return "";
+  return `<div class="card" id="recovery-panel">
+    <h3>Recovery key &amp; commitment receipt</h3>
+    <div class="callout callout-warn">
+      <strong>Before you hand out copies:</strong> download the
+      <strong>commitment receipt</strong> and keep it somewhere other than this
+      computer — email it to yourself or your counsel, or print it. A receipt
+      saved <em>before</em> a leak is what lets a third party check an accusation
+      later, instead of having to trust this machine.
+    </div>
+    <div id="recovery-seal" class="note small">Checking the seal…</div>
+    <div class="rowline" style="margin-top:0.6rem">
+      <a class="btn btn-gold" href="/api/tests/${esc(m.test_id)}/receipt"
+         download>Download commitment receipt</a>
+      <a class="btn" href="/api/tests/${esc(m.test_id)}/recovery-key"
+         download>Download recovery key</a>
+    </div>
+    <p class="muted small" style="margin-top:0.6rem">
+      The <strong>recovery key</strong> is your backup: it can trace this
+      campaign's leaks even if this computer's data is lost. It records which
+      copy went to which recipient — never the document itself — so anyone who
+      opens it can see the recipient mapping; keep it somewhere safe. It is
+      currently <strong>not encrypted</strong>. Format:
+      <a href="https://github.com/En10-Pvt-Ltd/fingerprint-desk/blob/main/docs/recovery-key-format.md"
+         target="_blank" rel="noopener">recovery-key-format.md</a>.
+    </p>
+  </div>`;
+}
+
+async function wireRecoveryPanel(m) {
+  if (!m.is_owner) return;
+  const box = document.getElementById("recovery-seal");
+  if (!box) return;
+  try {
+    const ri = await api(`/api/tests/${m.test_id}/recovery-info`);
+    const label = ri.mapping_seal === "pre-distribution"
+      ? "complete pre-distribution seal" : "point-in-time snapshot";
+    box.innerHTML = `<span class="chip">Mapping seal: ${esc(label)}</span>
+      <span> ${esc(ri.seal_explain)}</span>
+      <br><span class="muted">Recipients recorded so far:
+      ${ri.n_recipients}.</span>`;
+  } catch (e) {
+    box.innerHTML = "";   // older backend without the endpoint: hide quietly
+  }
 }
 
 function wireOwnerPanel(m) {

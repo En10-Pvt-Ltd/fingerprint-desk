@@ -18,8 +18,11 @@ probability of falsely accusing an innocent copy.
 - **Cropping to a region** (partial): a full page is best, but the decode degrades to a
   *lead*, not silence, on a partial page — and stays honest (it declines rather than guesses
   when there is too little signal).
-- **After-the-fact tampering with the mapping:** the sealed SHA-256 commitment makes an
-  accusation checkable by a third party.
+- **After-the-fact tampering with the codebook:** the SHA-256 commitment over *which mark
+  each copy carries*, sealed at generation before distribution, makes that checkable by a
+  third party. Tamper-evidence for the *who-received-which mapping* depends on the seal kind —
+  see **Commitment seals** below; do not assume the mapping is provably pre-leak unless it was
+  sealed `pre-distribution`.
 
 ## What defeats it (be explicit about this)
 
@@ -49,9 +52,44 @@ the control through the same pipeline; if the control is ever attributed, the re
 not be relied on and it is a release-blocking bug. Report such cases via
 [SECURITY.md](../SECURITY.md).
 
+## Commitment seals — what each actually proves
+
+An accusation rests on two separate claims, sealed separately. Be precise about which you
+hold, because they do not prove the same thing:
+
+- **Codebook commitment** — *which invisible mark each copy carries*. Sealed at generation,
+  **before any copy is distributed**, so it provably predates any leak. This is what makes the
+  physical-mark side of an accusation checkable.
+- **Mapping seal** — *who received which copy*. It carries one of two kinds:
+  - `pre-distribution` — the mapping was fixed and bound before distribution, so it provably
+    predates the leak.
+  - `snapshot` — the mapping **as it stood when the recovery key/receipt was made**. It proves
+    who held which copy at that time; it does **not** prove the mapping predates distribution,
+    and an adversary can argue the mapping was altered after the fact.
+
+  A `snapshot` is all a campaign can carry today: copies are assigned on join
+  (first-come-first-served), so there is no pre-distribution roster to bind. Treat a snapshot
+  mapping as corroborating, not as proof that the recipient link predates the leak. The seal
+  kind is bound into the digest and printed on the recovery key and receipt; the exact format
+  is in [recovery-key-format.md](recovery-key-format.md).
+
 ## Operator trust boundary
 
 Ground truth (per-copy seeds, mappings, pack sheet→role tables) is what makes tracing
-possible. Anyone holding it can trace; anyone who loses it can never trace. The app keeps it
-server-side in the data directory and never serves it; volunteer-pack ground truth is
-private by design. Protect and back up that data directory (the `/data` volume) accordingly.
+possible. Anyone holding it can trace; anyone who loses it can never trace. The app does not
+serve it to contributors over the web UI, and volunteer-pack ground truth is private by design.
+
+Two deliberate exports move a scoped slice of ground truth off the box, and change the story
+above in your favour if used well:
+
+- The **commitment receipt** carries only the digests and the seal kind — no ground truth.
+  Deposit it with a third party *before* distributing copies; a receipt dated before any leak
+  is what makes an accusation checkable without trusting the operator's disk.
+- The **recovery key** carries the full codebook and mapping (but never the document). It is
+  the backup that survives a lost data directory, and lets an investigation run on another
+  machine. Because it *is* ground truth, whoever holds it can trace — so it is exported under
+  a confidentiality warning and (in a later build) encrypted at rest. A leaked key exposes the
+  who-received-which mapping, but never the document itself.
+
+Protect and back up the data directory (the `/data` volume). A recovery key is the second line
+of defence when that fails; the receipt is the anchor that survives even losing both.

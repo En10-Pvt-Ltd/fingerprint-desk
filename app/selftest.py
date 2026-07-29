@@ -1046,6 +1046,49 @@ _ak = _cm.keyed_commitment(atid, _acb, _aca, _cm.SEAL_SNAPSHOT)
 ok(len(_ak) == 64 and _ak != _acb,
    "keyed commitment over the live mapping differs from the codebook digest")
 
+print("[15b] recovery key export + commitment receipt")
+ri = admin2.get(f"/api/tests/{atid}/recovery-info").json()
+ok(ri["mapping_seal"] == "snapshot"
+   and "predates distribution" in ri["seal_explain"],
+   "recovery-info reports the snapshot seal in plain language")
+ok(ri["n_recipients"] == 3 and ri["codebook_sha256"] == _acb,
+   "recovery-info: 3 recipients, codebook digest matches the sealed one")
+ok(c1.get(f"/api/tests/{atid}/recovery-info").status_code == 404,
+   "recovery key is owner/admin only (a contributor gets 404)")
+
+kr = admin2.get(f"/api/tests/{atid}/recovery-key")
+ok(kr.status_code == 200
+   and "attachment" in kr.headers.get("content-disposition", ""),
+   "recovery key downloads as an attachment")
+env = kr.json()
+ok(env["format"] == "fingerprint-desk-recovery-key" and env["version"] == 1,
+   "envelope is versioned")
+# payload_sha256 self-check (truncation/tamper), recomputed independently
+_pay = _js.dumps(env["payload"], sort_keys=True, separators=(",", ":")).encode()
+ok(_hl.sha256(_pay).hexdigest() == env["payload_sha256"],
+   "payload_sha256 self-verifies (independent recompute)")
+# the key reproduces the sealed codebook + keyed digests from its own contents
+_kc = _cm.codebook_commitment(atid, env["payload"]["copies"], None)
+ok(_kc == env["commitment"]["codebook_sha256"] == _acb,
+   "key's own copies reproduce the sealed codebook digest")
+_kk = _cm.keyed_commitment(atid, _kc, env["payload"]["assignments"], "snapshot")
+ok(_kk == env["commitment"]["keyed_sha256"],
+   "key reproduces the keyed (mapping) digest from its own contents")
+ok(len(env["payload"]["assignments"]) == 3
+   and all("email" not in a and "recipient" in a
+           for a in env["payload"]["assignments"]),
+   "key carries the canonical mapping (portable recipient identity, sorted)")
+ok("document.pdf" not in _js.dumps(env) and "%PDF" not in _js.dumps(env),
+   "recovery key contains no document bytes (re-trace, not re-issue)")
+
+_rt = admin2.get(f"/api/tests/{atid}/receipt").text
+ok("COMMITMENT RECEIPT" in _rt and "SNAPSHOT" in _rt
+   and env["commitment"]["codebook_sha256"] in _rt
+   and env["commitment"]["keyed_sha256"] in _rt,
+   "receipt states what it is, the seal kind, and both digests")
+ok(len(_rt) < 2500, "receipt fits on a page / in an email",
+   f"{len(_rt)} chars")
+
 m1_ = c1.get(f"/api/tests/{atid}").json()
 ok(m1_["my_assignment"] == d1
    and [d["doc_id"] for d in m1_["docs"]] == [d1],
