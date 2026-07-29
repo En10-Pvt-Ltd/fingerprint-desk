@@ -32,7 +32,7 @@ jobs:
           python test_metrics.py
           python metrics.py
 
-      - name: App end-to-end selftest (290 checks)
+      - name: App end-to-end selftest (293 checks)
         run: python app/selftest.py
 
       - name: Demo-site verification gate

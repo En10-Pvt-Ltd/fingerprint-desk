@@ -399,6 +399,15 @@ def imported_recipient(test_id, doc_id):
     return dict(r) if r else None
 
 
+def imported_recipients(test_id):
+    """The full imported mapping ordered by doc_id (so re-exporting an imported
+    campaign reproduces the same keyed digest the key carried)."""
+    rows = conn().execute(
+        "SELECT doc_id, recipient, assigned_utc FROM imported_recipients"
+        " WHERE test_id=? ORDER BY doc_id", (test_id,)).fetchall()
+    return [dict(r) for r in rows]
+
+
 def is_roster(test_id):
     """True if this campaign fixed its who-received-which mapping at creation
     (a roster or count campaign), so it seals pre_distribution."""

@@ -1433,6 +1433,28 @@ ok(_rrv.get("attributed") and _rrv.get("doc_id") == "v2"
    "roster-campaign verdict names the sealed recipient",
    str(_rrv.get("recipient")))
 
+# regression: importing a roster key must PRESERVE the pre_distribution seal
+# (a pre_distribution key must never read back as a snapshot on the recovery
+# machine) and reproduce the original keyed digest on re-export.
+_rkey = radm.post(f"/api/tests/{rtid}/recovery-key",
+                  json={"encrypt": False, "acknowledge_plaintext": True}).json()
+_orig_keyed = _rkey["commitment"]["keyed_sha256"]
+_shutil.rmtree(store.test_dir(rtid), ignore_errors=True)
+with db.conn() as _c:
+    _c.execute("DELETE FROM roster WHERE test_id=?", (rtid,))
+    _c.execute("DELETE FROM tests WHERE test_id=?", (rtid,))
+_rk.import_key(_rkey, _rk.open_key(_rkey, None),
+               db.get_user_by_email("roster-admin@selftest.local")["id"])
+ok(_rk.current_seal(rtid, store.load_manifest(rtid)) == _cm.SEAL_PREDISTRIBUTION
+   and db.is_roster(rtid),
+   "an imported roster key PRESERVES the pre_distribution seal")
+_riinfo = radm.get(f"/api/tests/{rtid}/recovery-info").json()
+ok(_riinfo["mapping_seal"] == "pre-distribution"
+   and _riinfo["roster_mode"] == "count",
+   "imported campaign recovery-info reports pre-distribution + count")
+ok(_riinfo["keyed_sha256"] == _orig_keyed,
+   "re-export of the imported campaign reproduces the original keyed digest")
+
 print("[15g] bulk ZIP download (slugified, de-collided, control isolated)")
 radm3, _ = make_user(client, "roster-admin3@selftest.local")
 db.set_admin(db.get_user_by_email("roster-admin3@selftest.local")["id"])

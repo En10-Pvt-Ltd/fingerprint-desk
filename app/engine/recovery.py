@@ -163,10 +163,14 @@ def _assemble(test_id, m):
         # export a key that would not verify, rather than ship a broken one.
         raise ValueError("codebook digest does not match the sealed commitment; "
                          "campaign data may be corrupted -- not exporting")
-    # Roster campaigns fix the mapping at creation (recipient = sealed identity);
-    # join campaigns bind it from claimed accounts (recipient = email). One code
-    # path builds the same canonical mapping from whichever source applies.
-    if db.is_roster(test_id):
+    # The mapping comes from whichever source applies: an imported campaign
+    # replays the key's sealed mapping (so re-export reproduces the same keyed
+    # digest); a roster campaign uses the roster fixed at creation; a join
+    # campaign binds it from claimed accounts (recipient = email).
+    if db.is_imported(test_id):
+        entries = [(r["doc_id"], r["recipient"], r["assigned_utc"])
+                   for r in db.imported_recipients(test_id)]
+    elif db.is_roster(test_id):
         entries = [(r["doc_id"], r["recipient"], r["assigned_utc"])
                    for r in db.roster_recipients(test_id)]
     else:
@@ -313,7 +317,8 @@ def materialize(payload, dest_dir):
                     json.dump(page_meta, f)
 
 
-def _write_campaign(test_id, payload, importer_id):
+def _write_campaign(test_id, payload, importer_id, roster_mode,
+                    identity_scheme):
     """Transactional, all-or-nothing write: build the campaign in a temp dir,
     insert the DB rows and atomically move the dir INSIDE one transaction, and
     on any failure leave zero trace (no partial dir, no orphaned rows)."""
@@ -321,6 +326,11 @@ def _write_campaign(test_id, payload, importer_id):
     final = store.test_dir(test_id)
     manifest = payload["manifest"]
     n_marked = sum(1 for d in manifest.get("docs", []) if d.get("marked"))
+    # Carry the key's sealed state so the imported campaign reports the ORIGINAL
+    # seal (a pre_distribution key must not read back as a snapshot). A
+    # pre_distribution key sets roster=1 so current_seal returns pre_distribution.
+    seal = payload.get("mapping_seal", SEAL_SNAPSHOT)
+    roster_flag = 1 if seal == SEAL_PREDISTRIBUTION else 0
     try:
         materialize(payload, tmp)
         c = db.conn()
@@ -328,9 +338,11 @@ def _write_campaign(test_id, payload, importer_id):
             with c:                      # one transaction for the DB rows...
                 c.execute(
                     "INSERT INTO tests(test_id, user_id, created_utc, status,"
-                    " mode, n_variants, imported) VALUES(?,?,?,?,?,?,1)",
+                    " mode, n_variants, imported, roster, roster_mode,"
+                    " identity_scheme) VALUES(?,?,?,?,?,?,1,?,?,?)",
                     (test_id, importer_id, store.now_utc(), "generated",
-                     manifest.get("type", "rendered"), n_marked))
+                     manifest.get("type", "rendered"), n_marked, roster_flag,
+                     roster_mode, identity_scheme))
                 for a in payload["assignments"]:
                     c.execute(
                         "INSERT OR REPLACE INTO imported_recipients"
@@ -364,9 +376,11 @@ def import_key(env, payload, importer_id):
             return {"status": "already_present", "test_id": test_id,
                     "n_recipients": len(payload["assignments"])}
         raise ImportConflict(test_id, local_cb, imported_cb)
-    _write_campaign(test_id, payload, importer_id)
+    _write_campaign(test_id, payload, importer_id,
+                    env.get("roster_mode"), env.get("identity_scheme"))
     return {"status": "imported", "test_id": test_id,
             "carrier": payload["manifest"].get("type", "rendered"),
+            "mapping_seal": payload.get("mapping_seal", SEAL_SNAPSHOT),
             "n_copies": len(payload["copies"]),
             "n_recipients": len(payload["assignments"])}
 
