@@ -56,4 +56,7 @@ removal attacks that a normal recipient could perform are still worth reporting.
 - Keep the app port unpublished and terminate TLS at the bundled proxy; set
   `FF_TRUST_PROXY=1` so rate limits key on the real client IP.
 - Back up `/data` (SQLite + sealed commitments) — it holds all tracing ability. Losing that
-  data directory means a document can never be traced.
+  data directory means a document can never be traced **unless a recovery key was exported**
+  for that campaign (a portable, optionally-encrypted backup of its ground truth; see
+  [docs/recovery-key-format.md](docs/recovery-key-format.md)). Treat an exported key as
+  ground truth: whoever holds it can trace, so store it off the machine and encrypt it.

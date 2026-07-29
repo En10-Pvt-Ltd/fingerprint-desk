@@ -124,13 +124,26 @@ used Google sign-in? See [MIGRATION.md](MIGRATION.md).
 ### Backing up (do not skip)
 
 All tracing ability lives in **one data directory** on the machine running the app: the
-per-copy ground truth and the sealed commitments. It is not exported to you as a key — it
-lives on disk. **If that directory is lost (reinstall, disk failure, deleting the folder),
-every document that instance has generated becomes permanently untraceable.** Backing it up
-is the operator's responsibility. The directory is:
+per-copy ground truth and the sealed commitments. **If that directory is lost (reinstall,
+disk failure, deleting the folder) and you never exported a recovery key, every document
+that instance has generated becomes permanently untraceable.** Back it up. The directory is:
 
 - **Docker:** the `data/` folder next to `docker-compose.yml` (data under `data/appdata/`).
 - **Direct run (`python app/serve.py`):** the `appdata/` folder in the project directory.
+
+**Two exports make a campaign survivable off this machine** (from a campaign's own page):
+
+- The **recovery key** (`<campaign>.fdkey.json`) is a portable backup of one campaign's
+  ground truth. Stored **off this machine**, it lets you trace that campaign's leaks — and
+  name who received the leaked copy — from another install, even if this data directory is
+  gone. It never contains the document itself, but it does hold the recipient mapping, so
+  keep it safe; encrypt it with a passphrase (there is **no recovery if you forget the
+  passphrase** — store it separately). See
+  [docs/recovery-key-format.md](docs/recovery-key-format.md).
+- The **commitment receipt** is a few lines holding only the digests and seal — no ground
+  truth. **Deposit it with a third party before you distribute copies**: dated before any
+  leak, it is what lets an accusation be checked without trusting this machine. It survives
+  even a forgotten passphrase.
 
 Not a developer? See [docs/for-schools.md](docs/for-schools.md) for a no-terminal guide.
 

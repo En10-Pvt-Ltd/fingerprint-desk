@@ -4,16 +4,30 @@ You do not need to be technical to *use* this, but someone does need to **run an
 you** first — either a hosted web address your IT set up, or the Docker deployment in the
 main README. This guide assumes you have an address to open and can sign in.
 
-## Read this first: the one thing that can go permanently wrong
+## Read this first: keep the key and the receipt safe
 
 Everything needed to trace a leak — the invisible pattern in each copy and the sealed record
-that proves it — is stored in **one data directory on the machine running the app**. It is
-**not** given to you as a file to keep. If that directory is lost — the machine is
-reinstalled, its disk fails, or the folder is deleted — then **every document that instance
-has ever generated becomes permanently untraceable.** There is no recovery.
+that proves it — lives in **one data directory on the machine running the app**. If that
+directory is lost (the machine is reinstalled, its disk fails, the folder is deleted) **and
+no recovery key was exported**, then every document that instance generated becomes
+**permanently untraceable**.
 
-Backing it up is the **operator's** responsibility, not yours, but make sure someone owns
-that job. The directory is:
+You are not helpless against that. For each campaign, whoever runs the app can export two
+things from the campaign's own page — ask them to:
+
+- **A recovery key**, kept somewhere *other than that machine* (a backup drive, your
+  institution's secure store). It can trace that campaign's leaks — and name who received the
+  leaked copy — from a fresh install, even if the original machine is gone. It does not
+  contain the document, but it does contain the record of who got which copy, so keep it
+  safe. It can be locked with a passphrase, and **a forgotten passphrase cannot be
+  recovered**, so store the passphrase separately from the file.
+- **A commitment receipt** — a short text file with no sensitive contents — **deposited with
+  someone outside (your counsel, or a dated email to yourself) *before* the copies go out.**
+  Dated before any leak, it is what lets an outside party check an accusation instead of
+  taking your word for it. It survives even a forgotten passphrase.
+
+Backing up the data directory is still the **operator's** responsibility — make sure someone
+owns that job — but the recovery key is your safety net if it fails. The directory is:
 
 - **Docker deployment:** the `data/` folder next to `docker-compose.yml` (all tracing data
   lives under `data/appdata/`).
@@ -24,8 +38,8 @@ use to sanity-check any future accusation.
 
 ## Step 1 — Sign in
 
-Open the web address and sign in (on a hosted instance, "Sign in with Google"). Then click
-**Start a test**.
+Open the web address and sign in with the account your IT set up for you (email and
+password). Then click **Start a test**.
 
 ## Step 2 — Create the copies
 

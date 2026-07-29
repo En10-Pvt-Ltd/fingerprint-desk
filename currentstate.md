@@ -173,9 +173,10 @@ resolved. Verified properties:
 
 - `Dockerfile` (single process, `CMD python app/serve.py`), `docker-compose.yml`
   (app + Caddy; only Caddy publishes 80/443), `Caddyfile` (automatic HTTPS).
-- `.env.example` documents `SECRET_KEY`, `BASE_URL`, `GOOGLE_CLIENT_ID/SECRET`,
-  `ADMIN_EMAILS`; `/data` is the persistent volume (SQLite + sealed
-  commitments — the thing to back up).
+- `.env.example` documents `SECRET_KEY`, `BASE_URL`, `FF_MODE`, `ADMIN_EMAILS`
+  (Google sign-in was removed in the FF_MODE auth redesign); `/data` is the
+  persistent volume (SQLite + sealed commitments — the thing to back up, or
+  export a per-campaign recovery key as a portable backup).
 - Recommended target: one small VPS (`docker compose up -d`). The Supabase/
   Netlify volunteer portal is now **optional** — the pack flow runs entirely
   in-app.

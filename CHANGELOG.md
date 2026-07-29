@@ -4,6 +4,30 @@ All notable changes to this project are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project aims to follow
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+- **Per-campaign recovery key + commitment receipt.** A campaign's ground truth can be
+  exported as a portable, optionally-encrypted (Argon2id + AES-256-GCM) `<campaign>.fdkey.json`
+  and imported on another installation to investigate a leak — naming the recipient, not just
+  a copy id — even if the original data directory is gone. A small commitment receipt (digests
+  + seal, no ground truth) is meant for third-party escrow before distribution. Import is
+  integrity-first and transactional; imported campaigns are investigation-only. Format:
+  `docs/recovery-key-format.md`.
+- **Keyed commitment (v2)** binding the who-received-which mapping and its seal kind
+  (`pre-distribution` vs `snapshot`) in addition to the codebook commitment.
+- **Two explicit deployment modes** (`FF_MODE=local` loopback-only / `FF_MODE=server`
+  email+password accounts with first-run setup and single-use invites); see `MIGRATION.md`.
+- **Bundled Liberation Serif font** (SIL OFL 1.1) as the default render face, so a fresh
+  clone renders identically on any OS with no font setup.
+
+### Changed
+- `ADMIN_EMAILS` is now a bootstrap seed only, not a live admin check (closes a privilege
+  escalation). Admin status lives in the database.
+
+### Removed
+- Google sign-in and the `authlib` dependency (a hosted OAuth mode may return later).
+
 ## [0.1.0] - 2026-07-26
 
 First tagged snapshot: the research pipeline plus the public application.

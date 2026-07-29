@@ -76,8 +76,9 @@ hold, because they do not prove the same thing:
 ## Operator trust boundary
 
 Ground truth (per-copy seeds, mappings, pack sheet→role tables) is what makes tracing
-possible. Anyone holding it can trace; anyone who loses it can never trace. The app does not
-serve it to contributors over the web UI, and volunteer-pack ground truth is private by design.
+possible. Anyone holding it can trace; anyone who loses it can never trace **unless they
+exported a recovery key first** (below). The app does not serve it to contributors over the
+web UI, and volunteer-pack ground truth is private by design.
 
 Two deliberate exports move a scoped slice of ground truth off the box, and change the story
 above in your favour if used well:

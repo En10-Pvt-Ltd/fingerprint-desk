@@ -29,11 +29,19 @@ different seeds, hence different codewords.
 
 ## 3. Commitment: accusations you can check, not trust
 
-Before any copy is distributed, a **SHA-256 commitment** is sealed over the full ground
-truth (every copy's metadata and, for PDF carriers, the exact emitted file bytes). Because
-the mapping is fixed and hashed up front, an accuser cannot quietly change "which copy was
-which" after a leak appears — a third party can recompute the commitment and verify the
-mapping is the original one.
+Before any copy is distributed, a **SHA-256 commitment** is sealed over the codebook — every
+copy's metadata and, for PDF carriers, the exact emitted file bytes. Because *which mark each
+copy carries* is fixed and hashed up front, an accuser cannot quietly change it after a leak
+appears: a third party recomputes the commitment and verifies it is the original codebook.
+
+The separate question of *who received which copy* is bound by a second, keyed commitment
+carried on the recovery key and receipt, and it comes in two strengths. A `pre-distribution`
+seal proves the recipient mapping predates distribution; a `snapshot` seal proves only the
+mapping as it stood when the key was exported. Today copies are assigned on join, so only a
+`snapshot` is available — the mapping is corroborating, not proof it predates the leak. Both
+seal kinds, and how to recompute either digest, are specified in
+[recovery-key-format.md](recovery-key-format.md); the trade-off is in
+[threat-model.md](threat-model.md).
 
 ## 4. Decode: blind and scale-free
 
