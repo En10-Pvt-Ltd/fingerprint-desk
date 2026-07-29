@@ -726,12 +726,38 @@ def recovery_info_route(test_id: str, user=Depends(require_user)):
         raise HTTPException(400, str(e))
 
 
-@app.get("/api/tests/{test_id}/recovery-key")
-def recovery_key_route(test_id: str, user=Depends(require_user)):
-    """Download the self-contained recovery key (<test_id>.fdkey.json)."""
+class RecoveryKeyReq(BaseModel):
+    encrypt: bool = True
+    passphrase: str | None = None
+    acknowledge_passphrase_loss: bool = False
+    acknowledge_plaintext: bool = False
+
+
+@app.post("/api/tests/{test_id}/recovery-key")
+def recovery_key_route(test_id: str, req: RecoveryKeyReq,
+                       user=Depends(require_user), _=Depends(csrf_check)):
+    """Download the self-contained recovery key (<test_id>.fdkey.json). POST
+    (not GET) so the passphrase never rides in a URL. The acknowledgement
+    fields are enforced gates, not UI decoration: an encrypted export requires
+    acknowledging that a forgotten passphrase is unrecoverable; a plaintext
+    export requires acknowledging the file is unencrypted."""
     m = _recovery_manifest(test_id, user)
+    if req.encrypt:
+        if not req.passphrase or len(req.passphrase) < recovery.MIN_PASSPHRASE:
+            raise HTTPException(
+                400, f"a passphrase of at least {recovery.MIN_PASSPHRASE} "
+                "characters is required")
+        if not req.acknowledge_passphrase_loss:
+            raise HTTPException(400, "you must acknowledge that a forgotten "
+                                "passphrase cannot be recovered")
+        passphrase = req.passphrase
+    else:
+        if not req.acknowledge_plaintext:
+            raise HTTPException(400, "you must acknowledge exporting an "
+                                "unencrypted key")
+        passphrase = None
     try:
-        env = recovery.build_envelope(test_id, m)
+        env = recovery.build_envelope(test_id, m, passphrase=passphrase)
     except ValueError as e:
         raise HTTPException(400, str(e))
     body = json.dumps(env, indent=1).encode("utf-8")

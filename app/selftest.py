@@ -1056,7 +1056,8 @@ ok(ri["n_recipients"] == 3 and ri["codebook_sha256"] == _acb,
 ok(c1.get(f"/api/tests/{atid}/recovery-info").status_code == 404,
    "recovery key is owner/admin only (a contributor gets 404)")
 
-kr = admin2.get(f"/api/tests/{atid}/recovery-key")
+kr = admin2.post(f"/api/tests/{atid}/recovery-key",
+                 json={"encrypt": False, "acknowledge_plaintext": True})
 ok(kr.status_code == 200
    and "attachment" in kr.headers.get("content-disposition", ""),
    "recovery key downloads as an attachment")
@@ -1088,6 +1089,77 @@ ok("COMMITMENT RECEIPT" in _rt and "SNAPSHOT" in _rt
    "receipt states what it is, the seal kind, and both digests")
 ok(len(_rt) < 2500, "receipt fits on a page / in an email",
    f"{len(_rt)} chars")
+
+print("[15c] recovery key encryption (Argon2id + AES-256-GCM)")
+from engine import recovery as _rk         # noqa: E402
+import copy as _copy                        # noqa: E402
+PW = "correct horse battery staple"
+
+# The acknowledgements are server-enforced gates, not just UI.
+ok(admin2.post(f"/api/tests/{atid}/recovery-key",
+   json={"encrypt": True, "passphrase": "short"}).status_code == 400,
+   "encrypted export rejects a too-short passphrase")
+ok(admin2.post(f"/api/tests/{atid}/recovery-key",
+   json={"encrypt": True, "passphrase": PW,
+         "acknowledge_passphrase_loss": False}).status_code == 400,
+   "encrypted export refused without the passphrase-loss acknowledgement")
+ok(admin2.post(f"/api/tests/{atid}/recovery-key",
+   json={"encrypt": False, "acknowledge_plaintext": False}).status_code == 400,
+   "plaintext export refused without the unencrypted acknowledgement")
+
+kre = admin2.post(f"/api/tests/{atid}/recovery-key",
+   json={"encrypt": True, "passphrase": PW,
+         "acknowledge_passphrase_loss": True})
+ok(kre.status_code == 200, "encrypted export succeeds with passphrase + ack")
+enve = kre.json()
+ok(enve["encryption"]["kdf"] == "argon2id"
+   and enve["encryption"]["cipher"] == "AES-256-GCM"
+   and isinstance(enve["payload"], str),
+   "payload is encrypted; block names Argon2id + AES-256-GCM")
+# header (identity + both digests) stays readable without the passphrase
+ok(enve["campaign_id"] == atid
+   and enve["commitment"]["codebook_sha256"] == env["commitment"]["codebook_sha256"]
+   and enve["commitment"]["keyed_sha256"] == env["commitment"]["keyed_sha256"],
+   "encrypted key's header + digests stay cleartext (escrowable)")
+_a = enve["encryption"]["argon2"]
+ok(all(k in _a for k in ("time_cost", "memory_cost", "parallelism",
+                         "hash_len", "salt", "version")),
+   "all Argon2id parameters travel in the file, not the code")
+
+ok(_rk.open_key(enve, PW) == env["payload"],
+   "encrypted round trip: open_key reproduces the exact payload")
+
+
+def _err(fn):
+    try:
+        fn(); return "no-error"
+    except Exception as e:
+        return type(e).__name__
+
+
+ok(_err(lambda: _rk.open_key(enve)) == "PassphraseRequired",
+   "encrypted key with no passphrase -> PassphraseRequired")
+ok(_err(lambda: _rk.open_key(enve, "wrong-passphrase")) == "IncorrectPassphrase",
+   "wrong passphrase -> IncorrectPassphrase (not DamagedKey)")
+_badh = _copy.deepcopy(enve)
+_badh["commitment"]["codebook_sha256"] = "0" * 64
+ok(_err(lambda: _rk.open_key(_badh, PW)) == "DamagedKey",
+   "altered header digest -> DamagedKey (distinct from a passphrase error)")
+_badp = _copy.deepcopy(env)
+_badp["payload"]["assignments"][0]["recipient"] = "mallory@evil.test"
+ok(_err(lambda: _rk.open_key(_badp)) == "DamagedKey",
+   "tampered plaintext payload -> DamagedKey")
+ok(_rk.open_key(env) == env["payload"],
+   "plaintext key opens (backward compatible with pre-encryption keys)")
+
+# parameters come from the FILE: opening still works after code defaults drift
+_orig = _rk.ARGON2_DEFAULTS
+_rk.ARGON2_DEFAULTS = {**_orig, "time_cost": _orig["time_cost"] + 7}
+try:
+    ok(_rk.open_key(enve, PW) == env["payload"],
+       "open uses the file's KDF params, not the changed code defaults")
+finally:
+    _rk.ARGON2_DEFAULTS = _orig
 
 m1_ = c1.get(f"/api/tests/{atid}").json()
 ok(m1_["my_assignment"] == d1

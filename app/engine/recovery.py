@@ -23,7 +23,14 @@ Seal kind (see docs/threat-model.md):
     who held which copy at that moment, not that it predates distribution. This
     is the only seal a campaign can carry today.
 """
+import base64
 import hashlib
+import json
+import os
+
+from argon2.low_level import hash_secret_raw, Type
+from cryptography.exceptions import InvalidTag
+from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 
 from . import store, db, render, render_pdf
 from .commitment import (canonical, codebook_commitment, keyed_commitment,
@@ -46,6 +53,72 @@ SEAL_EXPLAIN = {
         "seal (which does) needs a roster fixed at creation and is not "
         "available for campaigns created before that feature exists.",
 }
+
+
+# ---- encryption at rest (optional; default-on at export) ----------------------
+# Argon2id (KDF) -> AES-256-GCM (AEAD). EVERY parameter needed to re-derive the
+# key travels in the file's `encryption` block, so a key opens in a future build
+# whose defaults have drifted. These defaults are used only when writing a key.
+ARGON2_DEFAULTS = {"type": "id", "version": 19, "time_cost": 3,
+                   "memory_cost": 65536, "parallelism": 4, "hash_len": 32}
+CIPHER = "AES-256-GCM"
+MIN_PASSPHRASE = 8
+
+
+class PassphraseRequired(Exception):
+    """The key is encrypted and no passphrase was supplied."""
+
+
+class IncorrectPassphrase(Exception):
+    """AEAD authentication failed -- wrong passphrase. Kept distinct from
+    DamagedKey so the operator knows to re-check the passphrase, not the file."""
+
+
+class DamagedKey(Exception):
+    """A post-decrypt integrity check failed (payload hash or commitment
+    mismatch), or the envelope is malformed / too new: the file is truncated,
+    altered, or unreadable -- a different remedy from a wrong passphrase."""
+
+
+def _b64e(b):
+    return base64.b64encode(b).decode("ascii")
+
+
+def _b64d(s):
+    return base64.b64decode(s.encode("ascii"))
+
+
+def _derive_key(passphrase, salt, p):
+    """Argon2id KDF using parameters read from the file, never code defaults."""
+    return hash_secret_raw(
+        passphrase.encode("utf-8"), salt,
+        time_cost=p["time_cost"], memory_cost=p["memory_cost"],
+        parallelism=p["parallelism"], hash_len=p["hash_len"],
+        type=Type.ID, version=p.get("version", 19))
+
+
+def _encrypt(passphrase, plaintext):
+    """Return (encryption_block, base64_ciphertext); the block carries every
+    KDF/cipher parameter needed to reverse this."""
+    salt, nonce = os.urandom(16), os.urandom(12)
+    argon2 = dict(ARGON2_DEFAULTS)
+    key = _derive_key(passphrase, salt, argon2)
+    ct = AESGCM(key).encrypt(nonce, plaintext, None)   # no AAD (see open_key)
+    return ({"kdf": "argon2id",
+             "argon2": {**argon2, "salt": _b64e(salt)},
+             "cipher": CIPHER,
+             "nonce": _b64e(nonce)},
+            _b64e(ct))
+
+
+def _decrypt(passphrase, enc, ct_b64):
+    argon2 = dict(enc["argon2"])
+    salt = _b64d(argon2.pop("salt"))
+    key = _derive_key(passphrase, salt, argon2)
+    try:
+        return AESGCM(key).decrypt(_b64d(enc["nonce"]), _b64d(ct_b64), None)
+    except InvalidTag:
+        raise IncorrectPassphrase("incorrect passphrase")
 
 
 def _is_pdf(m):
@@ -95,9 +168,12 @@ def _assemble(test_id, m):
     return copies, pdf_hashes, assignments, codebook, keyed, seal
 
 
-def build_envelope(test_id, m):
-    """The full recovery-key artifact (a JSON-serialisable dict). Plaintext in
-    step 2; the `encryption` field is reserved for step 3."""
+def build_envelope(test_id, m, passphrase=None):
+    """The full recovery-key artifact (a JSON-serialisable dict). When
+    `passphrase` is given the `payload` is encrypted (Argon2id + AES-256-GCM)
+    and replaced by base64 ciphertext; the header -- campaign identity and both
+    commitment digests -- always stays cleartext, so identity and the digests
+    remain checkable and escrowable without the passphrase."""
     copies, _pdf, assignments, codebook, keyed, seal = _assemble(test_id, m)
     payload = {
         "test_id": test_id,
@@ -106,7 +182,8 @@ def build_envelope(test_id, m):
         "assignments": assignments,    # who-received-which, portable identity
         "mapping_seal": seal,
     }
-    return {
+    canonical_bytes = canonical(payload).encode("utf-8")
+    env = {
         "format": FORMAT,
         "version": FORMAT_VERSION,
         "campaign_id": test_id,
@@ -124,11 +201,62 @@ def build_envelope(test_id, m):
             "algo": m["commitment"].get("algo"),
             "committed_utc": m["commitment"].get("committed_utc"),
         },
-        "encryption": None,            # reserved (step 3: Argon2id + AEAD)
-        "payload_sha256": hashlib.sha256(
-            canonical(payload).encode("utf-8")).hexdigest(),
-        "payload": payload,
+        # over the PLAINTEXT payload, so integrity is checkable after decrypt
+        "payload_sha256": hashlib.sha256(canonical_bytes).hexdigest(),
     }
+    if passphrase:
+        env["encryption"], env["payload"] = _encrypt(passphrase, canonical_bytes)
+    else:
+        env["encryption"] = None
+        env["payload"] = payload
+    return env
+
+
+def _verify_commitments(env, payload):
+    """Recompute both digests from the (decrypted) payload and compare to the
+    cleartext header; a mismatch means the file was altered."""
+    pm = payload.get("manifest", {})
+    pdf_hashes = ({d["doc_id"]: d["pdf_sha256"] for d in pm.get("docs", [])}
+                  if pm.get("type") in _PDF_TYPES else None)
+    codebook = codebook_commitment(payload["test_id"], payload["copies"],
+                                   pdf_hashes)
+    keyed = keyed_commitment(payload["test_id"], codebook,
+                             payload["assignments"], payload["mapping_seal"])
+    c = env.get("commitment", {})
+    if codebook != c.get("codebook_sha256") or keyed != c.get("keyed_sha256"):
+        raise DamagedKey("damaged or altered")
+
+
+def open_key(env, passphrase=None):
+    """Verify and return the decrypted payload, or raise -- deliberately with
+    distinct types so the caller can tell a wrong passphrase from a corrupted
+    file (the remedies differ): PassphraseRequired, IncorrectPassphrase, or
+    DamagedKey. Never returns a partial or unverified payload."""
+    if not isinstance(env, dict) or env.get("format") != FORMAT:
+        raise DamagedKey("not a Fingerprint Desk recovery key")
+    if env.get("version", 0) > FORMAT_VERSION:
+        raise DamagedKey("this key was made by a newer version of Fingerprint "
+                         "Desk; upgrade to open it")
+    enc = env.get("encryption")
+    if enc:
+        if not passphrase:
+            raise PassphraseRequired("this recovery key is encrypted; a "
+                                     "passphrase is required")
+        plaintext = _decrypt(passphrase, enc, env["payload"])   # IncorrectPassphrase
+        if hashlib.sha256(plaintext).hexdigest() != env.get("payload_sha256"):
+            raise DamagedKey("damaged or altered")
+        try:
+            payload = json.loads(plaintext)
+        except ValueError:
+            raise DamagedKey("damaged or altered")
+    else:
+        payload = env.get("payload")
+        if not isinstance(payload, dict) or hashlib.sha256(
+                canonical(payload).encode("utf-8")).hexdigest() \
+                != env.get("payload_sha256"):
+            raise DamagedKey("damaged or altered")
+    _verify_commitments(env, payload)
+    return payload
 
 
 def recovery_info(test_id, m):

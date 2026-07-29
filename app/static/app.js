@@ -1116,6 +1116,7 @@ function ownerPanelHTML(m) {
 /* -------------- owner: recovery key & commitment receipt -------------- */
 function recoveryPanelHTML(m) {
   if (!m.is_owner) return "";
+  const id = esc(m.test_id);
   return `<div class="card" id="recovery-panel">
     <h3>Recovery key &amp; commitment receipt</h3>
     <div class="callout callout-warn">
@@ -1123,42 +1124,127 @@ function recoveryPanelHTML(m) {
       <strong>commitment receipt</strong> and keep it somewhere other than this
       computer — email it to yourself or your counsel, or print it. A receipt
       saved <em>before</em> a leak is what lets a third party check an accusation
-      later, instead of having to trust this machine.
+      later, instead of having to trust this machine. The receipt is always
+      unencrypted and safe to hand out — it holds no ground truth.
     </div>
     <div id="recovery-seal" class="note small">Checking the seal…</div>
     <div class="rowline" style="margin-top:0.6rem">
-      <a class="btn btn-gold" href="/api/tests/${esc(m.test_id)}/receipt"
+      <a class="btn btn-gold" href="/api/tests/${id}/receipt"
          download>Download commitment receipt</a>
-      <a class="btn" href="/api/tests/${esc(m.test_id)}/recovery-key"
-         download>Download recovery key</a>
     </div>
-    <p class="muted small" style="margin-top:0.6rem">
-      The <strong>recovery key</strong> is your backup: it can trace this
-      campaign's leaks even if this computer's data is lost. It records which
-      copy went to which recipient — never the document itself — so anyone who
-      opens it can see the recipient mapping; keep it somewhere safe. It is
-      currently <strong>not encrypted</strong>. Format:
+
+    <h4 style="margin-top:1.1rem">Export the recovery key</h4>
+    <p class="muted small">Your backup for tracing this campaign even if this
+      computer's data is lost. It records which copy went to which recipient —
+      <strong>never the document itself</strong> — so anyone who opens it can
+      see the recipient mapping. Keep it somewhere other than this machine.</p>
+    <label class="check"><input type="radio" name="rk-mode" value="enc" checked>
+      Encrypt with a passphrase (recommended)</label>
+    <label class="check"><input type="radio" name="rk-mode" value="plain">
+      Export unencrypted</label>
+
+    <div id="rk-enc" style="margin-top:0.5rem">
+      <input type="password" id="rk-pass" autocomplete="new-password"
+             placeholder="Passphrase (at least 8 characters)">
+      <input type="password" id="rk-pass2" autocomplete="new-password"
+             placeholder="Repeat the passphrase">
+      <label class="check"><input type="checkbox" id="rk-ack-loss">
+        I understand that if I forget this passphrase, the ability to trace this
+        campaign is destroyed as completely as losing this computer —
+        <strong>there is no recovery path</strong>. I will store the passphrase
+        separately from this file.</label>
+    </div>
+
+    <div id="rk-plain" style="display:none;margin-top:0.5rem">
+      <div class="callout callout-warn">An unencrypted key lets anyone who opens
+        the file see which copy went to which recipient.</div>
+      <label class="check"><input type="checkbox" id="rk-ack-plain">
+        I understand this key will <strong>not be encrypted</strong>.</label>
+    </div>
+
+    <div class="rowline" style="margin-top:0.6rem">
+      <button class="btn" id="rk-export" disabled>Create &amp; download recovery
+        key</button>
+    </div>
+    <div id="rk-msg" class="note small" style="margin-top:0.4rem"></div>
+    <p class="muted small" style="margin-top:0.6rem">Format:
       <a href="https://github.com/En10-Pvt-Ltd/fingerprint-desk/blob/main/docs/recovery-key-format.md"
-         target="_blank" rel="noopener">recovery-key-format.md</a>.
-    </p>
+         target="_blank" rel="noopener">recovery-key-format.md</a>.</p>
   </div>`;
 }
 
 async function wireRecoveryPanel(m) {
   if (!m.is_owner) return;
   const box = document.getElementById("recovery-seal");
-  if (!box) return;
-  try {
-    const ri = await api(`/api/tests/${m.test_id}/recovery-info`);
-    const label = ri.mapping_seal === "pre-distribution"
-      ? "complete pre-distribution seal" : "point-in-time snapshot";
-    box.innerHTML = `<span class="chip">Mapping seal: ${esc(label)}</span>
-      <span> ${esc(ri.seal_explain)}</span>
-      <br><span class="muted">Recipients recorded so far:
-      ${ri.n_recipients}.</span>`;
-  } catch (e) {
-    box.innerHTML = "";   // older backend without the endpoint: hide quietly
+  if (box) {
+    try {
+      const ri = await api(`/api/tests/${m.test_id}/recovery-info`);
+      const label = ri.mapping_seal === "pre-distribution"
+        ? "complete pre-distribution seal" : "point-in-time snapshot";
+      box.innerHTML = `<span class="chip">Mapping seal: ${esc(label)}</span>
+        <span> ${esc(ri.seal_explain)}</span>
+        <br><span class="muted">Recipients recorded so far:
+        ${ri.n_recipients}.</span>`;
+    } catch (e) { box.innerHTML = ""; }   // older backend: hide quietly
   }
+  const btn = document.getElementById("rk-export");
+  if (!btn) return;
+  const encBox = document.getElementById("rk-enc");
+  const plainBox = document.getElementById("rk-plain");
+  const pass = document.getElementById("rk-pass");
+  const pass2 = document.getElementById("rk-pass2");
+  const ackLoss = document.getElementById("rk-ack-loss");
+  const ackPlain = document.getElementById("rk-ack-plain");
+  const msg = document.getElementById("rk-msg");
+  const encMode = () =>
+    document.querySelector('input[name="rk-mode"]:checked').value === "enc";
+  function refresh() {
+    const enc = encMode();
+    encBox.style.display = enc ? "" : "none";
+    plainBox.style.display = enc ? "none" : "";
+    btn.disabled = enc
+      ? !(pass.value.length >= 8 && pass.value === pass2.value && ackLoss.checked)
+      : !ackPlain.checked;
+  }
+  [pass, pass2, ackLoss, ackPlain].forEach(el => {
+    el.oninput = refresh; el.onchange = refresh;
+  });
+  document.querySelectorAll('input[name="rk-mode"]')
+    .forEach(el => el.onchange = refresh);
+  btn.onclick = async () => {
+    const enc = encMode();
+    const body = enc
+      ? {encrypt: true, passphrase: pass.value,
+         acknowledge_passphrase_loss: ackLoss.checked}
+      : {encrypt: false, acknowledge_plaintext: ackPlain.checked};
+    btn.disabled = true; msg.textContent = "Building the recovery key…";
+    try {
+      const r = await fetch(`/api/tests/${m.test_id}/recovery-key`, {
+        method: "POST",
+        headers: {"Content-Type": "application/json", "X-CSRF-Token": ME.csrf},
+        body: JSON.stringify(body),
+      });
+      if (!r.ok) {
+        const e = await r.json().catch(() => ({detail: "export failed"}));
+        throw new Error(e.detail || "export failed");
+      }
+      const blob = await r.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url; a.download = `${m.test_id}.fdkey.json`;
+      document.body.appendChild(a); a.click(); a.remove();
+      URL.revokeObjectURL(url);
+      msg.textContent = enc
+        ? "Encrypted recovery key downloaded. Store the passphrase separately —"
+          + " it cannot be recovered."
+        : "Unencrypted recovery key downloaded. Keep it somewhere safe.";
+    } catch (e) {
+      msg.textContent = e.message;
+    } finally {
+      refresh();
+    }
+  };
+  refresh();
 }
 
 function wireOwnerPanel(m) {
