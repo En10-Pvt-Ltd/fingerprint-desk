@@ -1,54 +1,59 @@
 # For schools and exam offices — a no-terminal guide
 
-You do not need to be technical to use this. If someone has set up a Fingerprint Desk
-instance for you (a web address), the whole job is four screens. If not, ask your IT contact
-to run the one-line Docker deployment in the main README, or use a hosted instance.
+You do not need to be technical to *use* this, but someone does need to **run an instance for
+you** first — either a hosted web address your IT set up, or the Docker deployment in the
+main README. This guide assumes you have an address to open and can sign in.
 
-## Before you start: the one thing that matters
+## Read this first: the one thing that can go permanently wrong
 
-When you generate copies, the tool creates a **recovery key** file. That key is the only
-thing that can later trace a leak. **If you lose it, nothing can ever be traced.** Save it
-somewhere safe and backed up the moment you download it, exactly like an exam-paper safe
-combination.
+Everything needed to trace a leak — the invisible pattern in each copy and the sealed record
+that proves it — is stored in **one data directory on the machine running the app**. It is
+**not** given to you as a file to keep. If that directory is lost — the machine is
+reinstalled, its disk fails, or the folder is deleted — then **every document that instance
+has ever generated becomes permanently untraceable.** There is no recovery.
 
-Also: always keep the **control copy** the tool makes for you. It is an untagged copy used
-to sanity-check any future accusation.
+Backing it up is the **operator's** responsibility, not yours, but make sure someone owns
+that job. The directory is:
 
-## Screen 1 — Upload
+- **Docker deployment:** the `data/` folder next to `docker-compose.yml` (all tracing data
+  lives under `data/appdata/`).
+- **Direct run (`python app/serve.py`):** the `appdata/` folder inside the project directory.
 
-Drag in a PDF, or paste the text. The tool tells you in plain language what kind of document
-it is ("This is a scanned document — we'll use the image method") and how many distinct
-copies it can safely carry ("up to about 500 distinct copies").
+Also keep the **unmarked control copy** the tool makes automatically — an untagged copy you
+use to sanity-check any future accusation.
 
-## Screen 2 — Name the copies
+## Step 1 — Sign in
 
-Two ways:
+Open the web address and sign in (on a hosted instance, "Sign in with Google"). Then click
+**Start a test**.
 
-- **By count.** "How many copies?" e.g. `40`, with a naming pattern like `Centre-1 …
-  Centre-40`.
-- **By roster.** Paste or upload a list of names (one per line, or a CSV) — one copy per
-  name. This is what a university with 300 students wants.
+## Step 2 — Create the copies
 
-The tool also makes **one unmarked control copy** automatically. One line explains it: *if
-the system ever accuses that copy, something is wrong.*
+- Paste the document text, or upload a PDF. The tool previews how many pages it will produce
+  and whether each page can carry a strong hidden mark.
+- Choose how many copies to make. **The point-and-click app currently makes 2 to 5 copies at
+  a time**, each auto-named *Variant 1, Variant 2, …*, plus **one unmarked control**
+  automatically.
+- Press **Create the marked copies**.
 
-## Screen 3 — Download and distribute
+> Larger named campaigns — one copy per centre or per student, with your own naming such as
+> `Centre-1 … Centre-40` — are **planned but not yet available** in the app. Today they
+> require the command-line tool; ask your operator.
 
-- **Download all** as a ZIP (one PDF per name), or download any single copy from a
-  searchable list.
-- **Download the recovery key** and tick "I have saved this". Do not skip this.
-- **Printing:** print at **100% / actual size** (not "fit to page"), on plain white paper,
-  and **do not photocopy** the copies (photocopying can blur the mark). Hand each named
-  person their named copy.
+## Step 3 — Download, print, distribute
 
-## Screen 4 — Investigate a leak
+- Download each copy's PDF from the test page. (A single **download-all-as-a-ZIP** button is
+  **planned but not yet available** — for now, download the copies one at a time.)
+- **Print at 100% / actual size** (not "fit to page"), on plain white paper. **Do not
+  photocopy** the copies — photocopying can blur the mark. Hand each recipient their own copy
+  and record who received which.
 
-If a page leaks (say, someone shares a phone photo), upload that photo and select your
-recovery key. You get a plain-language verdict, never a raw number:
+## Step 4 — Investigate a leak
 
-> **Most likely source: Centre-14.** Evidence strength: strong — this reading would occur by
-> chance for an unrelated copy less than once in a million times. Next most likely: Centre-9,
-> far behind.
+If a page leaks (for example, someone shares a phone photo), open that same test on the same
+instance and **upload the photo**. You get a plain-language verdict, never a raw number:
+
+> **We read this as Variant 14** — with a plain statement of how confident the reading is.
 
 or, shown with equal weight:
 
@@ -56,13 +61,14 @@ or, shown with equal weight:
 > This is normal for small crops or heavily degraded images. It does **not** mean the
 > document was untagged.
 
-**Before you act on any positive result**, run your control copy through the same check. If
-the control is also attributed, do not rely on the result — stop and report it.
+**Before you act on any positive result,** photograph and check your **control copy** the
+same way. If the control is ever attributed, do not rely on the result — stop and report it
+as a bug.
 
 ## What you can ignore
 
-Anything about carriers, bits, p-values, tiers, or Bonferroni lives behind an "Advanced
-details" toggle for a forensic analyst. You never need it for normal use.
+Anything about bits, corrected p-values, deskew, or the decoding pipeline lives behind a
+**"Technical details"** toggle for a forensic analyst. You never need it for normal use.
 
 ## Responsible use
 

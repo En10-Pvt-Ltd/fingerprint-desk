@@ -112,6 +112,17 @@ configure Google OAuth (`GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET`). An https `
 or a set `GOOGLE_CLIENT_ID` automatically disables the dev sign-in, so it can never be live
 in production.
 
+### Backing up (do not skip)
+
+All tracing ability lives in **one data directory** on the machine running the app: the
+per-copy ground truth and the sealed commitments. It is not exported to you as a key — it
+lives on disk. **If that directory is lost (reinstall, disk failure, deleting the folder),
+every document that instance has generated becomes permanently untraceable.** Backing it up
+is the operator's responsibility. The directory is:
+
+- **Docker:** the `data/` folder next to `docker-compose.yml` (data under `data/appdata/`).
+- **Direct run (`python app/serve.py`):** the `appdata/` folder in the project directory.
+
 Not a developer? See [docs/for-schools.md](docs/for-schools.md) for a no-terminal guide.
 
 ## How it works
