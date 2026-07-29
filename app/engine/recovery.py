@@ -27,6 +27,8 @@ import base64
 import hashlib
 import json
 import os
+import secrets
+import shutil
 
 from argon2.low_level import hash_secret_raw, Type
 from cryptography.exceptions import InvalidTag
@@ -257,6 +259,102 @@ def open_key(env, passphrase=None):
             raise DamagedKey("damaged or altered")
     _verify_commitments(env, payload)
     return payload
+
+
+# ---- import (materialise an imported campaign; investigation-only) ------------
+class ImportConflict(Exception):
+    """A campaign with this test_id already exists locally with a DIFFERENT
+    codebook. Never merged or overwritten -- a divergent digest is a tamper
+    signal; the operator resolves it explicitly."""
+
+    def __init__(self, test_id, local_codebook, imported_codebook):
+        super().__init__("a different version of this campaign already exists")
+        self.test_id = test_id
+        self.local_codebook = local_codebook
+        self.imported_codebook = imported_codebook
+
+
+def materialize(payload, dest_dir):
+    """Write the campaign's manifest + per-copy metas from a verified payload
+    into dest_dir, laid out exactly like a generated campaign so the blind
+    scanner reads it unchanged. No page images or PDFs: attribution needs only
+    the metas, and the key carries no document bytes."""
+    manifest = payload["manifest"]
+    os.makedirs(dest_dir, exist_ok=True)
+    with open(os.path.join(dest_dir, "manifest.json"), "w",
+              encoding="utf-8") as f:
+        json.dump(manifest, f, indent=1)
+    is_pdf = manifest.get("type") in _PDF_TYPES
+    for doc_id, meta in payload["copies"].items():
+        ddir = os.path.join(dest_dir, "docs", doc_id)
+        os.makedirs(ddir, exist_ok=True)
+        if is_pdf:
+            with open(os.path.join(ddir, "meta.json"), "w",
+                      encoding="utf-8") as f:
+                json.dump(meta, f)
+        else:
+            for k, page_meta in enumerate(meta):
+                with open(os.path.join(ddir, f"page{k}_meta.json"), "w",
+                          encoding="utf-8") as f:
+                    json.dump(page_meta, f)
+
+
+def _write_campaign(test_id, payload, importer_id):
+    """Transactional, all-or-nothing write: build the campaign in a temp dir,
+    insert the DB rows and atomically move the dir INSIDE one transaction, and
+    on any failure leave zero trace (no partial dir, no orphaned rows)."""
+    tmp = os.path.join(store.TESTS_DIR, ".import-" + secrets.token_hex(6))
+    final = store.test_dir(test_id)
+    manifest = payload["manifest"]
+    n_marked = sum(1 for d in manifest.get("docs", []) if d.get("marked"))
+    try:
+        materialize(payload, tmp)
+        c = db.conn()
+        try:
+            with c:                      # one transaction for the DB rows...
+                c.execute(
+                    "INSERT INTO tests(test_id, user_id, created_utc, status,"
+                    " mode, n_variants, imported) VALUES(?,?,?,?,?,?,1)",
+                    (test_id, importer_id, store.now_utc(), "generated",
+                     manifest.get("type", "rendered"), n_marked))
+                for a in payload["assignments"]:
+                    c.execute(
+                        "INSERT OR REPLACE INTO imported_recipients"
+                        "(test_id, doc_id, recipient, assigned_utc)"
+                        " VALUES(?,?,?,?)",
+                        (test_id, a["doc_id"], a["recipient"],
+                         a.get("assigned_utc")))
+                os.replace(tmp, final)   # ...and the dir move, together
+        except Exception:
+            # rows rolled back; if the move landed before a later failure, undo
+            if os.path.exists(final) and not os.path.exists(tmp):
+                shutil.rmtree(final, ignore_errors=True)
+            raise
+    finally:
+        if os.path.exists(tmp):
+            shutil.rmtree(tmp, ignore_errors=True)
+
+
+def import_key(env, payload, importer_id):
+    """Import a verified recovery key. Identity = test_id + codebook_sha256:
+    a matching local digest is an idempotent no-op; a divergent one raises
+    ImportConflict (never overwritten); otherwise a fresh transactional write.
+    `env`/`payload` MUST come from open_key() -- integrity is already proven."""
+    test_id = payload["test_id"]
+    imported_cb = env["commitment"]["codebook_sha256"]
+    if os.path.exists(store.manifest_path(test_id)):
+        local = store.load_manifest(test_id)
+        lc = local.get("commitment", {})
+        local_cb = lc.get("codebook_sha256") or lc.get("sha256")
+        if local_cb == imported_cb:
+            return {"status": "already_present", "test_id": test_id,
+                    "n_recipients": len(payload["assignments"])}
+        raise ImportConflict(test_id, local_cb, imported_cb)
+    _write_campaign(test_id, payload, importer_id)
+    return {"status": "imported", "test_id": test_id,
+            "carrier": payload["manifest"].get("type", "rendered"),
+            "n_copies": len(payload["copies"]),
+            "n_recipients": len(payload["assignments"])}
 
 
 def recovery_info(test_id, m):

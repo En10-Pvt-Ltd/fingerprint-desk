@@ -1202,6 +1202,118 @@ ok(f1["contributors_uploaded"] == 1 and f1["feedback_wrong"] == 1
    and f1["feedback_correct"] == 0, "funnel counts upload + feedback",
    json.dumps(f1))
 
+print("[15d] recovery key import (transactional, conflict, investigation-only)")
+import tempfile as _tf                       # noqa: E402
+import shutil as _shutil                      # noqa: E402
+from engine import channel_sim as _cs         # noqa: E402
+IMP_PW = "import demo passphrase"
+
+# A throwaway assigned campaign; a contributor joins so the key carries a
+# who-received-which mapping, and we keep a synthetic leaked image of that copy
+# OUTSIDE the campaign before deleting it (a machine that never saw it).
+r = admin2.post("/api/tests", json={
+    "name": "Import Demo", "content": render.SAMPLE_TEXT,
+    "variant_labels": ["Alpha", "Beta"], "n_controls": 1, "sample_used": True})
+itid = r.json()["test_id"]
+wait_generated(admin2, itid)
+admin2.post(f"/api/admin/tests/{itid}/share",
+            json={"shared": True, "assigned": True})
+leaker, _ = make_user(client, "leaker@school.example")
+jdoc = leaker.post(f"/api/campaigns/{itid}/join").json()["doc_id"]
+_leakdir = _tf.mkdtemp()
+_leakimg, _ = _cs.simulate(
+    os.path.join(store.test_dir(itid), "docs", jdoc, "page0.png"),
+    _leakdir, "whatsapp")
+_leakbytes = open(_leakimg, "rb").read()
+ienv = admin2.post(f"/api/tests/{itid}/recovery-key", json={
+    "encrypt": True, "passphrase": IMP_PW,
+    "acknowledge_passphrase_loss": True}).json()
+ipayload = _rk.open_key(ienv, IMP_PW)
+_shutil.rmtree(store.test_dir(itid), ignore_errors=True)
+with db.conn() as _c:
+    _c.execute("DELETE FROM assignments WHERE test_id=?", (itid,))
+    _c.execute("DELETE FROM tests WHERE test_id=?", (itid,))
+ok(not os.path.exists(store.test_dir(itid)) and db.test_owner(itid) is None,
+   "campaign removed -> simulates a machine that never saw it")
+adminid = db.get_user_by_email("admin2@selftest.local")["id"]
+
+
+def _snap():
+    c = db.conn()
+    return (sorted(os.listdir(store.TESTS_DIR)),
+            c.execute("SELECT COUNT(*) n FROM tests").fetchone()["n"],
+            c.execute("SELECT COUNT(*) n FROM imported_recipients")
+            .fetchone()["n"])
+
+
+# (1) integrity-first: a tampered key is refused and leaves ZERO trace
+_snap0 = _snap()
+_tam = _copy.deepcopy(ienv)
+_tam["payload_sha256"] = "0" * 64
+r = admin2.post("/api/import-recovery-key",
+                files={"file": ("k.fdkey.json", _js.dumps(_tam),
+                                "application/json")},
+                data={"passphrase": IMP_PW})
+ok(r.status_code == 400 and r.json()["detail"]["code"] == "damaged",
+   "tampered key -> 400 damaged (integrity checked before any write)")
+ok(_snap() == _snap0,
+   "refused import left appdata + database byte-identical (zero trace)")
+
+# (2) transactional: a failure DURING the write also leaves zero trace
+_real_replace = os.replace
+os.replace = lambda *a, **k: (_ for _ in ()).throw(RuntimeError("boom"))
+try:
+    _threw = _err(lambda: _rk.import_key(ienv, ipayload, adminid)) == "RuntimeError"
+finally:
+    os.replace = _real_replace
+ok(_threw and _snap() == _snap0,
+   "a failure mid-write rolls back fully (no dir, no orphaned rows)")
+
+# (3) successful import (route), encrypted key + passphrase
+r = admin2.post("/api/import-recovery-key",
+                files={"file": ("k.fdkey.json", _js.dumps(ienv),
+                                "application/json")},
+                data={"passphrase": IMP_PW})
+ok(r.status_code == 200 and r.json()["status"] == "imported"
+   and r.json()["n_recipients"] == 1, "encrypted key imports", str(r.json()))
+ok(os.path.exists(store.manifest_path(itid)) and db.is_imported(itid),
+   "imported campaign on disk and flagged investigation-only")
+ok(db.imported_recipient(itid, jdoc)["recipient"] == "leaker@school.example",
+   "imported mapping resolves doc_id -> recipient email")
+
+# (4) THE POINT: attribute a leak on the imported campaign -> NAME the recipient
+r = admin2.post(f"/api/tests/{itid}/scan",
+                files={"file": ("leak.jpg", _leakbytes, "image/jpeg")},
+                data={"framing": "full"})
+_v = r.json().get("verdict", {})
+ok(_v.get("attributed") and _v.get("doc_id") == jdoc,
+   "leak attributes to the leaked copy on the imported campaign", str(_v)[:100])
+ok(_v.get("recipient") == "leaker@school.example",
+   "verdict NAMES the recipient, not just a doc_id", str(_v.get("recipient")))
+
+# (5) investigation-only: imported campaigns cannot be shared or simulated
+ok(admin2.post(f"/api/admin/tests/{itid}/share",
+   json={"shared": True}).status_code == 400,
+   "imported campaign cannot be shared")
+ok(admin2.post(f"/api/tests/{itid}/simulate",
+   json={"doc_id": jdoc, "page_index": 0, "preset": "whatsapp"}).status_code
+   == 400, "imported campaign cannot simulate (no source pages)")
+
+# (6) conflict: same key = idempotent no-op; divergent codebook = hard refusal
+r = admin2.post("/api/import-recovery-key",
+                files={"file": ("k.fdkey.json", _js.dumps(ienv),
+                                "application/json")},
+                data={"passphrase": IMP_PW})
+ok(r.status_code == 200 and r.json()["status"] == "already_present",
+   "re-importing the same key is an idempotent no-op")
+_snapC = _snap()
+_div = _copy.deepcopy(ienv)
+_div["commitment"]["codebook_sha256"] = "f" * 64
+ok(_err(lambda: _rk.import_key(_div, ipayload, adminid)) == "ImportConflict",
+   "divergent codebook -> ImportConflict (never silently merged)")
+ok(_snap() == _snapC,
+   "divergent-conflict refusal did not overwrite the local campaign")
+
 print("[16] volunteer pack flow (no account, verdicts withheld)")
 # Fabricate pack FP001 in the throwaway appdata: v1 = the repo dry-run
 # meta (received.jpeg is a real capture of it), v2 = every bit flipped

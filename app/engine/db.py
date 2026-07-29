@@ -71,6 +71,15 @@ CREATE TABLE IF NOT EXISTS assignments(
   assigned_utc TEXT NOT NULL,
   UNIQUE(test_id, doc_id),
   UNIQUE(test_id, user_id));
+-- Recipient mapping for a campaign imported from a recovery key. Kept separate
+-- from `assignments` because imported recipients are external identities (the
+-- portable email carried in the key), not local user accounts.
+CREATE TABLE IF NOT EXISTS imported_recipients(
+  test_id TEXT NOT NULL,
+  doc_id TEXT NOT NULL,
+  recipient TEXT NOT NULL,
+  assigned_utc TEXT,
+  PRIMARY KEY(test_id, doc_id));
 CREATE INDEX IF NOT EXISTS idx_tests_user ON tests(user_id);
 CREATE INDEX IF NOT EXISTS idx_scans_test ON scans(test_id);
 CREATE INDEX IF NOT EXISTS idx_events ON events(user_id, kind, created_utc);
@@ -109,6 +118,11 @@ def _migrate(c):
     if "auth_kind" not in ucols:
         with c:
             c.execute("ALTER TABLE users ADD COLUMN auth_kind TEXT")
+    # Imported (recovery-key) campaigns are investigation-only.
+    if "imported" not in cols:
+        with c:
+            c.execute("ALTER TABLE tests ADD COLUMN imported INTEGER"
+                      " NOT NULL DEFAULT 0")
 
 
 def _now():
@@ -342,6 +356,23 @@ def count_assignments(test_id):
     r = conn().execute("SELECT COUNT(*) n FROM assignments WHERE test_id=?",
                        (test_id,)).fetchone()
     return r["n"]
+
+
+def is_imported(test_id):
+    """True if this campaign was imported from a recovery key (investigation-
+    only: it can be scanned/attributed but never generates new copies)."""
+    r = conn().execute("SELECT imported FROM tests WHERE test_id=?",
+                       (test_id,)).fetchone()
+    return bool(r and r["imported"])
+
+
+def imported_recipient(test_id, doc_id):
+    """The recipient (portable identity) a doc_id was assigned to in an
+    imported campaign, from the recovery key's sealed mapping, or None."""
+    r = conn().execute("SELECT recipient, assigned_utc FROM imported_recipients"
+                       " WHERE test_id=? AND doc_id=?",
+                       (test_id, doc_id)).fetchone()
+    return dict(r) if r else None
 
 
 def assignment_rows(test_id):

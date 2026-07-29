@@ -145,6 +145,21 @@ async function main() {
     </form>
     <p class="small" id="inv-out" style="word-break:break-all"></p>
   </div>` : ""}
+  <h2>Recover a campaign from a key</h2>
+  <div class="card">
+    <p class="muted small">Import a recovery key exported from another
+    installation to investigate a leak here — even if this machine never had the
+    campaign. Imported campaigns are <strong>investigation-only</strong>: you can
+    attribute leaked photos, but not generate new copies.</p>
+    <div class="rowline">
+      <input type="file" id="imp-file" accept=".json,application/json">
+      <input type="password" id="imp-pass" autocomplete="off"
+             placeholder="Passphrase (if the key is encrypted)"
+             style="min-width:14rem">
+      <button class="btn btn-gold" id="imp-btn">Import recovery key</button>
+    </div>
+    <div id="imp-out" class="small" style="margin-top:0.5rem;word-break:break-all"></div>
+  </div>
   <h2>Campaign progress</h2>
   <div id="funnels"><div class="skel skel-row"></div></div>
   <h2>Latest contributions</h2>
@@ -162,6 +177,47 @@ async function main() {
         ${r.expires_days} days):<br>
         <code>${esc(location.origin + r.invite_path)}</code>`;
     } catch (err) { out.textContent = err.message; }
+  };
+
+  const impBtn = document.getElementById("imp-btn");
+  if (impBtn) impBtn.onclick = async () => {
+    const out = document.getElementById("imp-out");
+    const f = document.getElementById("imp-file").files[0];
+    if (!f) { out.textContent = "Choose a recovery key (.fdkey.json) first."; return; }
+    const fd = new FormData();
+    fd.append("file", f);
+    fd.append("passphrase", document.getElementById("imp-pass").value);
+    impBtn.disabled = true;
+    out.textContent = "Verifying and importing…";
+    try {
+      const r = await fetch("/api/import-recovery-key",
+        {method: "POST", headers: {"X-CSRF-Token": CSRF}, body: fd});
+      const body = await r.json().catch(() => ({}));
+      if (!r.ok) {
+        const d = body.detail || {};
+        if (d.code === "passphrase_required")
+          out.textContent = "This key is encrypted — enter its passphrase and import again.";
+        else if (d.code === "incorrect_passphrase")
+          out.textContent = "Incorrect passphrase. Check it and try again.";
+        else if (d.code === "conflict")
+          out.innerHTML = "A different version of this campaign already exists "
+            + "here — refused (nothing was overwritten). Compare the digests:<br>"
+            + `local codebook: <code>${esc(d.local_codebook_sha256)}</code><br>`
+            + `key codebook:&nbsp; <code>${esc(d.imported_codebook_sha256)}</code>`;
+        else
+          out.textContent = (typeof d === "string" ? d : d.message)
+            || "The recovery key could not be imported.";
+        return;
+      }
+      if (body.status === "already_present")
+        out.textContent = "This campaign is already present here with an "
+          + "identical codebook — nothing to do.";
+      else
+        out.innerHTML = `Imported <strong>${esc(body.test_id)}</strong> — `
+          + `${body.n_copies} copies, ${body.n_recipients} recipient(s). `
+          + `<a href="/#/test/${esc(body.test_id)}">Open it to investigate a leak.</a>`;
+    } catch (e) { out.textContent = e.message; }
+    finally { impBtn.disabled = false; }
   };
 
   renderCampaignFunnels();

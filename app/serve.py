@@ -624,6 +624,8 @@ def join_campaign(test_id: str, user=Depends(require_user),
     if not store.valid_id(test_id) or db.test_owner(test_id) is None \
             or not db.is_shared(test_id):
         raise HTTPException(404, "no such campaign")
+    if db.is_imported(test_id):
+        raise HTTPException(400, "imported campaigns are investigation-only")
     if not db.is_assign_mode(test_id):
         raise HTTPException(400, "this campaign does not assign variants; "
                                  "pick any variant to print")
@@ -779,6 +781,60 @@ def receipt_route(test_id: str, user=Depends(require_user)):
                              f'attachment; filename="{test_id}-receipt.txt"'})
 
 
+MAX_KEY_MB = 64
+
+
+@app.post("/api/import-recovery-key")
+async def import_recovery_key(file: UploadFile = File(...),
+                              passphrase: str = Form(""),
+                              user=Depends(require_admin),
+                              _=Depends(csrf_check)):
+    """Import a recovery key onto this installation (admin). Integrity is fully
+    verified before ANY write; the write is transactional; a divergent local
+    campaign is never overwritten. Imported campaigns are investigation-only."""
+    data = await read_limited(file, MAX_KEY_MB, "recovery key")
+    try:
+        env = json.loads(data.decode("utf-8"))
+    except Exception:
+        raise HTTPException(400, detail={"code": "damaged",
+                            "message": "not a readable recovery key file"})
+    try:
+        payload = recovery.open_key(env, passphrase or None)
+    except recovery.PassphraseRequired:
+        raise HTTPException(422, detail={"code": "passphrase_required",
+                            "message": "this recovery key is encrypted; enter "
+                            "its passphrase"})
+    except recovery.IncorrectPassphrase:
+        raise HTTPException(422, detail={"code": "incorrect_passphrase",
+                            "message": "incorrect passphrase"})
+    except recovery.DamagedKey as e:
+        raise HTTPException(400, detail={"code": "damaged", "message": str(e)})
+    try:
+        return recovery.import_key(env, payload, user["id"])
+    except recovery.ImportConflict as e:
+        raise HTTPException(409, detail={
+            "code": "conflict",
+            "message": "a different version of this campaign already exists "
+                       "here; it will not be overwritten. Remove the local "
+                       "campaign first if you intend to replace it.",
+            "test_id": e.test_id,
+            "local_codebook_sha256": e.local_codebook,
+            "imported_codebook_sha256": e.imported_codebook})
+
+
+def _name_recipient(test_id, result):
+    """For an imported campaign, resolve an attributed doc_id to the recipient
+    the recovery key says received it, so the verdict names a person -- not a
+    'Copy N'. This is the whole point of the feature on a recovery machine."""
+    if not db.is_imported(test_id):
+        return
+    v = result.get("verdict") or {}
+    if v.get("attributed") and v.get("doc_id"):
+        rec = db.imported_recipient(test_id, v["doc_id"])
+        if rec:
+            v["recipient"] = rec["recipient"]
+
+
 @app.get("/api/tests/{test_id}/pdf/{doc_id}")
 def pdf(test_id: str, doc_id: str, user=Depends(require_user)):
     m = _manifest(test_id, user, allow_shared=True)
@@ -919,6 +975,7 @@ async def scan_upload(test_id: str, request: Request,
                                      source, (scan_id, sdir))
     db.add_scan(scan_id, test_id, user["id"], "upload", result, capture_meta)
     db.add_event(user["id"], "scan")
+    _name_recipient(test_id, result)
     return result
 
 
@@ -928,6 +985,9 @@ async def simulate(test_id: str, req: SimulateReq,
     m = _manifest(test_id, user)
     if m.get("status") != "generated":
         raise HTTPException(409, "test not generated")
+    if db.is_imported(test_id):
+        raise HTTPException(400, "imported campaigns have no source pages; "
+                            "upload the leaked photo to /scan instead")
     doc = next((d for d in m["docs"] if d["doc_id"] == req.doc_id), None)
     if not doc:
         raise HTTPException(404, "no such doc")
@@ -1127,6 +1187,9 @@ def share_test(test_id: str, req: ShareReq, user=Depends(require_admin),
                _=Depends(csrf_check)):
     if not store.valid_id(test_id) or db.test_owner(test_id) is None:
         raise HTTPException(404, "no such test")
+    if db.is_imported(test_id):
+        raise HTTPException(400, "imported campaigns are investigation-only "
+                            "and cannot be shared with contributors")
     assign_mode = bool(req.shared and req.assigned)
     db.set_shared(test_id, req.shared, assign_mode)
     warning = None

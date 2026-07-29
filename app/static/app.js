@@ -1392,9 +1392,12 @@ function plainVerdict(r) {
       kind: "attributed",
       title: "We read this as",
       big: esc(v.label),
-      body: strong
+      body: (v.recipient
+        ? `This copy was issued to <strong>${esc(v.recipient)}</strong>. `
+        : "")
+        + (strong
         ? "The mark came through clearly — we are very confident about this one."
-        : "We think so, but not with full confidence.",
+        : "We think so, but not with full confidence."),
     };
   }
   if (v.reason === "runner-up too close") {
