@@ -14,6 +14,17 @@
 # untracked, no gitignored appdata) and writes a new directory elsewhere.
 # It does NOT push anywhere.
 #
+# CI policy — the private archive intentionally does NOT run CI.
+#   The PUBLIC mirror (En10-Pvt-Ltd/fingerprint-desk) runs the full test suite
+#   on every push; public repos get free Actions minutes, so it is the
+#   authoritative green signal. GitHub Actions is DISABLED on this private
+#   archive on purpose: re-running the identical suite here only spends billed
+#   minutes, and a permanently red "job not started" (billing) status trains
+#   maintainers to discount CI — worse than no signal. The archive's tree is
+#   instead guaranteed correct by the strict-superset invariant (every public
+#   tracked file present here, byte-identical). The absence of CI here is
+#   deliberate, not neglect.
+#
 # Usage:
 #   scripts/make-public-export.sh [EXPORT_DIR]
 # Default EXPORT_DIR: ../fingerprint-desk-public
