@@ -225,6 +225,55 @@ ok(_guard_exits(["127.0.0.1", "10.0.0.5"], "local"),
    "one non-loopback socket among loopbacks is fatal")
 ok(not _guard_exits(["0.0.0.0"], "server"), "server mode is not guarded")
 
+print("[0f] GuardedServer refuses at startup (the running server, not just "
+      "the helper)")
+import asyncio as _asyncio                                        # noqa: E402
+import serve as _serve                                            # noqa: E402
+from serve import GuardedServer                                   # noqa: E402
+import uvicorn as _uvicorn                                        # noqa: E402
+
+
+class _Sock:
+    def __init__(self, name=None, raises=False):
+        self._name, self._raises = name, raises
+
+    def getsockname(self):
+        if self._raises:
+            raise OSError("simulated: socket cannot be inspected")
+        return (self._name, 0)
+
+
+class _Srv:
+    def __init__(self, sockets):
+        self.sockets = sockets
+
+
+def _server_refuses(servers):
+    """Drive the REAL guard on a controlled bound-socket set (local mode),
+    no real socket opened. Returns True if the server refuses to serve."""
+    saved = _serve.MODE
+    _serve.MODE = "local"
+    try:
+        gs = GuardedServer(_uvicorn.Config(app))
+        gs.servers = servers
+        try:
+            gs.assert_bound_loopback()
+            return False
+        except SystemExit:
+            return True
+    finally:
+        _serve.MODE = saved
+
+
+ok(_server_refuses([_Srv([_Sock(raises=True)])]),
+   "getsockname() raising -> server refuses (cannot inspect sockets)")
+ok(_server_refuses([]),
+   "no inspectable socket -> server refuses (ambiguity)")
+ok(_server_refuses([_Srv([_Sock("8.8.8.8")])]),
+   "non-loopback bound socket -> server refuses")
+ok(not _server_refuses([_Srv([_Sock("127.0.0.1")])]),
+   "genuine loopback bind -> server serves")
+
 print("[1] layout preview")
 r = client.post("/api/layout", json={"content": render.SAMPLE_TEXT})
 ok(r.status_code == 200, "layout 200")

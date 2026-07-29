@@ -35,6 +35,7 @@ from starlette.concurrency import run_in_threadpool
 from starlette.middleware.sessions import SessionMiddleware
 from pydantic import BaseModel
 from PIL import Image
+import uvicorn
 
 import secrets
 
@@ -133,6 +134,36 @@ def _assert_loopback(addresses, mode):
             raise SystemExit(f"local mode is loopback-only, but the server "
                              f"is bound to {addr}. Set FF_MODE=server for a "
                              "network deployment (see MIGRATION.md).")
+
+
+class GuardedServer(uvicorn.Server):
+    """uvicorn.Server that inspects the REAL bound sockets after the bind:
+    in local mode any non-loopback socket -- or a socket set that cannot be
+    inspected at all -- kills the process. Checking after the bind (instead
+    of trusting the requested host string) covers every configuration path,
+    including dual-stack and hostname binds. Defined at module scope so the
+    selftest can drive startup() directly and prove the server refuses, not
+    just that the _assert_loopback helper is correct."""
+
+    async def startup(self, sockets=None):
+        await super().startup(sockets=sockets)
+        self.assert_bound_loopback()
+
+    def assert_bound_loopback(self):
+        """The guard proper, split out so the selftest can drive it with a
+        controlled socket set (proving the server refuses, not just that the
+        helper is correct) without opening a real socket."""
+        if MODE != "local":
+            return
+        try:
+            addrs = [str(s.getsockname()[0])
+                     for srv in (self.servers or [])
+                     for s in (srv.sockets or [])]
+        except (OSError, IndexError, TypeError):
+            raise SystemExit("local mode: could not inspect the bound "
+                             "sockets; refusing to serve. Set "
+                             "FF_MODE=server for a network deployment.")
+        _assert_loopback(addrs, MODE)
 
 
 MODE = resolve_mode()
@@ -1096,29 +1127,6 @@ async def unhandled(request, exc):
 
 
 if __name__ == "__main__":
-    import uvicorn
-
-    class GuardedServer(uvicorn.Server):
-        """uvicorn.Server that inspects the REAL bound sockets after the
-        bind: in local mode any non-loopback socket -- or a socket set that
-        cannot be inspected at all -- kills the process. Checking after the
-        bind (instead of trusting the requested host string) covers every
-        configuration path, including dual-stack and hostname binds."""
-
-        async def startup(self, sockets=None):
-            await super().startup(sockets=sockets)
-            if MODE != "local":
-                return
-            try:
-                addrs = [str(s.getsockname()[0])
-                         for srv in (self.servers or [])
-                         for s in (srv.sockets or [])]
-            except (OSError, IndexError, TypeError):
-                raise SystemExit("local mode: could not inspect the bound "
-                                 "sockets; refusing to serve. Set "
-                                 "FF_MODE=server for a network deployment.")
-            _assert_loopback(addrs, MODE)
-
     # Local mode defaults to (and via the guard above, insists on) a
     # loopback bind; server mode keeps the same default and the operator
     # binds wider explicitly (the container sets HOST=0.0.0.0).
