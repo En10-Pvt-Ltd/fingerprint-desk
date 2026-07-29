@@ -53,5 +53,5 @@ removal attacks that a normal recipient could perform are still worth reporting.
 - Set a strong `SECRET_KEY`; never ship the dev sign-in shim (`FF_DEV_LOGIN`) in production.
 - Keep the app port unpublished and terminate TLS at the bundled proxy; set
   `FF_TRUST_PROXY=1` so rate limits key on the real client IP.
-- Back up `/data` (SQLite + sealed commitments). A lost recovery key means a document can
-  never be traced.
+- Back up `/data` (SQLite + sealed commitments) — it holds all tracing ability. Losing that
+  data directory means a document can never be traced.

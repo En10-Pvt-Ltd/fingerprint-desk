@@ -23,7 +23,7 @@ the margin over the runner-up.
 - Carrier / mode:
 - The document or a minimal one that reproduces it:
 - The capture (image) or the exact simulate preset used:
-- The recovery key / meta, if needed to score (do not include real personal data):
+- The ground-truth metadata, if needed to score (do not include real personal data):
 
 **Did you run the control through the same pipeline?**
 What did the control read? (This is the check every operator should run.)

@@ -51,7 +51,7 @@ not be relied on and it is a release-blocking bug. Report such cases via
 
 ## Operator trust boundary
 
-Ground truth (per-copy seeds, mappings, pack sheet→role tables) is the recovery key. Anyone
-holding it can trace; anyone who loses it can never trace. The app keeps it server-side and
-never serves it; volunteer-pack ground truth is private by design. Protect and back up the
-recovery key / `/data` volume accordingly.
+Ground truth (per-copy seeds, mappings, pack sheet→role tables) is what makes tracing
+possible. Anyone holding it can trace; anyone who loses it can never trace. The app keeps it
+server-side in the data directory and never serves it; volunteer-pack ground truth is
+private by design. Protect and back up that data directory (the `/data` volume) accordingly.
