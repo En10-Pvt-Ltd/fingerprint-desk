@@ -18,6 +18,19 @@ let CFG = {max_variants: 5, capture_enums: {}, mode: "server",
 let LAST_TEST_RENDERED = null;   // avoid skeleton flash on poll re-renders
 let SHARE_WARNING = null;        // capacity_warning carried across a re-render
 
+/* Turn a FastAPI error "detail" into a human string. Our own handlers put a
+   plain string (or a {message} object) there; request-body validation (422)
+   instead yields an ARRAY of {loc,msg,...} objects — Stringifying that array
+   gives "[object Object],[object Object]", so map each entry to its msg. */
+function detailMsg(detail, fallback) {
+  if (!detail) return fallback;
+  if (typeof detail === "string") return detail;
+  if (Array.isArray(detail)) {
+    const msgs = detail.map(d => (d && (d.msg || d.message)) || "").filter(Boolean);
+    return msgs.length ? msgs.join("; ") : fallback;
+  }
+  return detail.message || fallback;
+}
 async function api(path, opts) {
   opts = opts || {};
   if (opts.method && opts.method !== "GET" && ME) {
@@ -27,7 +40,7 @@ async function api(path, opts) {
   const r = await fetch(path, opts);
   const body = await r.json().catch(() => ({}));
   if (r.status === 401) { ME = null; renderNav(); viewSignin(); throw new Error("signed out"); }
-  if (!r.ok) throw new Error(body.detail || r.statusText);
+  if (!r.ok) throw new Error(detailMsg(body.detail, r.statusText));
   return body;
 }
 const postJSON = (path, data) => api(path, {
@@ -41,7 +54,7 @@ async function packApi(path, opts) {
   const r = await fetch(path, opts || {});
   const body = await r.json().catch(() => ({}));
   if (!r.ok) {
-    const e = new Error(body.detail || r.statusText || ("HTTP " + r.status));
+    const e = new Error(detailMsg(body.detail, r.statusText || ("HTTP " + r.status)));
     e.status = r.status;
     throw e;
   }

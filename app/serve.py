@@ -295,7 +295,10 @@ class CreateReq(BaseModel):
     roster_mode: str | None = None   # "count" | "roster"
     identity_scheme: str | None = None   # "email" | "label"
     recipients: list[str] | None = None  # roster identities (raw), one per copy
-    contacts: list[str] | None = None    # optional unsealed contact, parallel
+    # optional unsealed contact, parallel to recipients; None per row when a
+    # recipient has no contact (the common "names/centres" case), so the list
+    # element type must be optional or Pydantic 422s before _validate_roster.
+    contacts: list[str | None] | None = None
     allow_duplicates: bool = False       # explicit confirm for duplicate identities
 
 

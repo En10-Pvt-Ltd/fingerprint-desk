@@ -173,7 +173,7 @@ resolved. Verified properties:
 ## 7. Testing & CI
 
 - **`app/selftest.py`** — end-to-end over the live API via FastAPI
-  TestClient, throwaway `FF_APPDATA`. **293 checks** across sections
+  TestClient, throwaway `FF_APPDATA`. **294 checks** across sections
   `[0]`–`[16]`, covering auth/CSRF/ownership, generation + commitment,
   simulated + real-capture attribution, the margin rule / resolution gate /
   pooled verdict, all four carriers (rendered, preserved, rich-content,

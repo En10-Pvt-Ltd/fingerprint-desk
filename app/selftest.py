@@ -1413,6 +1413,23 @@ ok(db.is_roster(ftid) and [x["recipient"] for x in db.roster_recipients(ftid)]
 ok(_rk.current_seal(ftid, fm) == _cm.SEAL_PREDISTRIBUTION,
    "created roster campaign seals pre_distribution")
 
+# regression (Phase 5 cold-clone gate): the browser posts contacts=[null,...]
+# — one entry per copy, all null — for a names/centres roster with no
+# contacts. The request model must accept null list elements, or the POST 422s
+# before _validate_roster runs and the whole names-only roster path is unusable
+# (in the UI it surfaced as "[object Object]"). Mirror that exact payload.
+radm_nc, _ = make_user(client, "roster-nulls@selftest.local")
+db.set_admin(db.get_user_by_email("roster-nulls@selftest.local")["id"])
+r = radm_nc.post("/api/tests", json={
+    "name": "NamesOnly", "content": render.SAMPLE_TEXT, "sample_used": True,
+    "distribution": "roster", "roster_mode": "roster",
+    "identity_scheme": "label", "recipients": ["Centre A", "Centre B"],
+    "contacts": [None, None], "allow_duplicates": False})
+ok(r.status_code == 200,
+   "names-only roster with per-row null contacts accepted (not 422)",
+   str(r.json())[:120])
+wait_generated(radm_nc, r.json()["test_id"])
+
 # immutability + non-sharing, enforced server-side
 ok(radm2.post(f"/api/admin/tests/{ftid}/share",
    json={"shared": True}).status_code == 400,
