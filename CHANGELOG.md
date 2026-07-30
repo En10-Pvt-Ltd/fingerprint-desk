@@ -7,6 +7,13 @@ All notable changes to this project are documented here. The format is based on
 ## [Unreleased]
 
 ### Added
+- **Generate-time self-verify guard.** After a campaign's copies are made, the app decodes
+  each copy's own clean render through the same decoder an investigation uses and **refuses to
+  create the campaign** (fail closed, no override) if the true copy does not read back — so an
+  operator can never print and distribute a document that could never trace a leak. The
+  refusal names the cause (marks unreadable on this document type vs. too few markable marks),
+  since the remedies differ. Every campaign is now verified against its specific document,
+  rather than relying on the reader to heed document-choice guidance.
 - **Per-campaign recovery key + commitment receipt.** A campaign's ground truth can be
   exported as a portable, optionally-encrypted (Argon2id + AES-256-GCM) `<campaign>.fdkey.json`
   and imported on another installation to investigate a leak — naming the recipient, not just
@@ -63,7 +70,10 @@ First tagged snapshot: the research pipeline plus the public application.
   outline-text examination PDF (~1,300 vector paths per page). Those source documents are
   third-party copyrighted material and cannot be redistributed, so they are not included in
   this repository. Decoding in both cases used the simulated channel, not a real
-  print-and-photograph capture. Real-capture validation for these two carriers is pending
+  print-and-photograph capture. Note: the scanned raster paper carries only 9 markable
+  slots — below the 10-bit attribution minimum — so it demonstrates the raster mechanism but
+  the generate-time self-verify guard would refuse a campaign built from it; it is not
+  attribution-grade evidence. Real-capture validation for these two carriers is pending
   the corpus campaign.
 - The simulated channel is never reported as a real result; a real print → photograph →
   messaging corpus is being collected.

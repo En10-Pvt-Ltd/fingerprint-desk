@@ -47,7 +47,8 @@ os.environ["FF_PACK_MAX_CAPTURES"] = "3"   # small so the cap is testable
 
 from fastapi.testclient import TestClient   # noqa: E402
 from serve import app, _assert_loopback     # noqa: E402
-from engine import store, render, scan, db  # noqa: E402
+import glob                                 # noqa: E402
+from engine import store, render, scan, db, self_verify  # noqa: E402
 import auth                                 # noqa: E402
 
 PASS = 0
@@ -106,8 +107,22 @@ def wait_generated(c, tid, timeout=300):
             return m
         if m["status"] == "error":
             sys.exit(f"generation error: {m.get('error')}\n{m.get('trace')}")
+        if m["status"] == "rejected":
+            sys.exit(f"unexpected self-verify rejection: {m.get('reject_reason')}")
         time.sleep(0.5)
     sys.exit("generation timed out")
+
+
+def wait_status(c, tid, statuses, timeout=300):
+    """Poll until the campaign reaches any of `statuses` (e.g. a self-verify
+    rejection, which wait_generated treats as fatal)."""
+    t0 = time.time()
+    while time.time() - t0 < timeout:
+        m = c.get(f"/api/tests/{tid}").json()
+        if m["status"] in statuses:
+            return m
+        time.sleep(0.3)
+    sys.exit("wait_status timed out")
 
 
 print("[0] server-mode first-run setup + auth gating")
@@ -664,6 +679,48 @@ res = r.json()
 ok(not res["verdict"]["attributed"],
    "preserved: control reads at chance, no attribution",
    json.dumps(res["verdict"]))
+
+print("[11-guard] generate-time self-verify guard (refuses documents whose "
+      "marks do not read back)")
+# PASS: a dense-text preserved campaign self-verifies -- decoding each variant's
+# own clean render (the real investigation path) attributes it to itself.
+ok(self_verify.verify(store.load_manifest(ptid))["ok"],
+   "guard PASSES a preserved campaign whose marks round-trip")
+# FAIL (preserved carrier, real decoder): copy that campaign and replace v1's
+# clean render with the unmarked control, so v1 can no longer be read back --
+# the same failure the real graphic brochure hit (that document is third-party
+# and cannot ship as a fixture). The guard must refuse it, fail closed.
+_bad = ptid + "-noroundtrip"
+shutil.copytree(store.test_dir(ptid), store.test_dir(_bad))
+_bm = store.load_manifest(_bad)
+_bm["test_id"] = _bad
+store.save_manifest(_bm)
+for _p in glob.glob(os.path.join(store.test_dir(_bad), "docs", "v1", "page*.png")):
+    shutil.copy(os.path.join(store.test_dir(_bad), "docs", "ctrl1",
+                             os.path.basename(_p)), _p)
+_rej = self_verify.verify(store.load_manifest(_bad))
+ok(not _rej["ok"] and _rej["detail"].get("failed_variants") == ["v1"],
+   "guard REJECTS a preserved campaign whose variant does not read back",
+   str(_rej["detail"].get("failed_variants")))
+shutil.rmtree(store.test_dir(_bad), ignore_errors=True)
+# FAIL (end to end, rendered): a too-sparse document is rejected through the
+# whole create path -- status 'rejected', a plain reason, and no proceed-anyway.
+# A fresh user (client's daily test quota is spent by now).
+_gc, _ = make_user(client, "guard-admin@selftest.local")
+r = _gc.post("/api/tests", json={
+    "name": "Sparse (should be rejected)",
+    "content": "Green Awards 2021. Winners announced. Congratulations to all.",
+    "variant_labels": ["Variant 1", "Variant 2", "Variant 3"],
+    "n_controls": 1, "sample_used": False})
+ok(r.status_code == 200, "sparse create accepted (generation starts)",
+   str(r.json())[:80])
+_sid = r.json()["test_id"]
+_sm = wait_status(client, _sid, ("generated", "rejected", "error"))
+ok(_sm["status"] == "rejected" and _sm.get("reject_reason"),
+   "guard REJECTS a sparse document end to end (status 'rejected')",
+   _sm["status"])
+ok(client.get(f"/api/tests/{_sid}/pdf/v1").status_code != 200,
+   "a guard-rejected campaign cannot be downloaded (fail closed)")
 
 print("[11b] rich-content PDF (tables, drawings, pictures preserved)")
 import io                                    # noqa: E402

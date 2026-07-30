@@ -35,6 +35,14 @@ probability of falsely accusing an innocent copy.
   the text, or aggressive "enhance"/deskew edits that re-space lines can erase the signal.
 - **Tiny fragments.** A single cropped question can point at a source but cannot, on its own,
   meet the evidence + margin gates or untangle a colluding group.
+- **Documents that can't carry the mark.** Heavy graphics, large headings, columns, or very
+  short documents may hold too few readable marks. This is **not** allowed to become a silent
+  failure: the app **self-verifies every campaign at creation**, decoding each copy's own
+  clean render through the same decoder an investigation uses and **refusing to create** a
+  campaign whose marks do not read back (fail closed, no override). It names the cause — wrong
+  document type vs. too little markable text — because the fixes differ. So an operator cannot
+  unknowingly print and distribute a campaign that could never trace a leak; the weakness is
+  surfaced up front rather than discovered after a real leak.
 
 ## Collusion
 

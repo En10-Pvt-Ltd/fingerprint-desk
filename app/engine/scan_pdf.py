@@ -17,7 +17,11 @@ from .scan import (binom_p, margin_check, MARGIN_RULE_TEXT, P_THRESHOLD,
                    MIN_BITS)
 
 
-def attribute(manifest, img_path, workdir, source):
+def attribute(manifest, img_path, workdir, source, only_pages=None):
+    # only_pages: restrict the page-layout search to these page indices. The
+    # self-verify guard passes the page it is decoding so a clean render is not
+    # robust-searched against every other page (identical observe/score, just
+    # not wasted on pages this image is not). None = search all (normal scans).
     test_id = manifest["test_id"]
     marked = [d for d in manifest["docs"] if d["marked"]]
     metas = {d["doc_id"]: load_doc_meta(test_id, d["doc_id"]) for d in marked}
@@ -35,6 +39,8 @@ def attribute(manifest, img_path, workdir, source):
     candidates = []
     for pg in layout["pages"]:
         if not pg["bands"]:
+            continue
+        if only_pages is not None and pg["page_index"] not in only_pages:
             continue
         obs = pdf_scan.observe_page(img_path, pg)
         if not obs.get("ok"):

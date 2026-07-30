@@ -60,7 +60,7 @@ vector fallback chain in the isolated worker).
 |---|---|---|---|---|---|
 | **Rendered** | `rendered` | pasted text / extracted PDF text | `render.py` + `encode.py`/`decode.py` | app re-typesets and shifts lines+words | Validated on a **real** phone capture (14/15 line bits, 0.933) |
 | **Preserved** | `pdf_preserved` | text PDFs (formatting kept) | `pdf_mark.py` / `pdf_scan.py` / `scan_pdf.py` | edits text-showing ops in the content stream | Synthetic + WhatsApp sim, plus one limited real capture (`field-test-002/`, 1 of 2 doc classes passed) |
-| **Raster** | `pdf_raster` | scanned / image-only PDFs | `raster_mark.py` / `scan_raster.py` | nudges pixel-row strips of the page image (±2 px), re-embedded losslessly | Field-tested on a scanned NEET paper (synthetic decode) |
+| **Raster** | `pdf_raster` | scanned / image-only PDFs | `raster_mark.py` / `scan_raster.py` | nudges pixel-row strips of the page image (±2 px), re-embedded losslessly | Mechanism demonstrated on a scanned NEET paper (marks embed losslessly + decode on the synthetic channel), **but that paper carries only 9 slots — below the 10-bit attribution minimum, so the self-verify guard would refuse it**; no attribution-grade validation yet |
 | **Vector** | `pdf_vector` | outline-text PDFs (glyphs as paths) | `vector_mark.py` / `scan_raster.py` | translates each line's paths ±0.48 pt in the content stream | Field-tested on a CBSE Accountancy paper (synthetic + WhatsApp sim) |
 
 Key properties preserved by the two no-text carriers: everything outside a
@@ -69,11 +69,17 @@ shifted line stays **pixel-identical** (raster) or **byte-exact vector**
 control copy is always a byte copy of the source; and both decode through the
 raster pathway's meta-guided sub-pixel profile-correlation decoder unchanged.
 
-**Field tests present in-repo:**
+**Field tests** (the source documents are third-party copyrighted material, so
+these packs are export-ignored from the public repo — described here, not
+shipped):
 - `field-test-003-neet-raster/` — 31-page scanned NEET paper (image-only,
-  ~109 dpi, two-column, real skew); 9 slots across pages 0–4.
+  ~109 dpi, two-column, real skew); **only 9 slots across pages 0–4, which is
+  below the 10-bit attribution minimum — the self-verify guard would refuse a
+  campaign built from it.** It demonstrates the raster mechanism (lossless
+  embed + decode), not an attributable document.
 - `field-test-004-accountancy/` — 32-page outline-text CBSE Accountancy paper
-  (~1,300 paths/page); 31 slots across pages 1–4.
+  (~1,300 paths/page); 31 slots across pages 1–4 (well above the minimum; the
+  self-verify guard passes it).
 
 ## 4. The application — "Fingerprint Desk"
 
@@ -173,7 +179,7 @@ resolved. Verified properties:
 ## 7. Testing & CI
 
 - **`app/selftest.py`** — end-to-end over the live API via FastAPI
-  TestClient, throwaway `FF_APPDATA`. **294 checks** across sections
+  TestClient, throwaway `FF_APPDATA`. **299 checks** across sections
   `[0]`–`[16]`, covering auth/CSRF/ownership, generation + commitment,
   simulated + real-capture attribution, the margin rule / resolution gate /
   pooled verdict, all four carriers (rendered, preserved, rich-content,
@@ -214,10 +220,14 @@ document classes, only `times11` passed the M3 gate (aggregate 37/41 = 0.902,
 page-1 14/14 and 13/14, control at chance 29/54 = 0.537); the 10 pt
 heading-heavy class did **not** validate and is recorded as such, and some
 segmentation filters were partly post-hoc — see `field-test-002/README.md`.
-The **raster** and **vector** carriers are validated only on the **synthetic
+The **raster** and **vector** carriers are exercised only on the **synthetic
 channel and the app's WhatsApp channel simulation** and on real *source
 documents*, and have **not yet** been through a real print → photograph →
-messaging capture. Broadening all of this end to end is exactly what the
+messaging capture. A further caveat on raster specifically: its field-test
+document (`field-test-003`) carries only 9 slots — below the 10-bit attribution
+minimum — so it demonstrates the mechanism but the self-verify guard would
+refuse a campaign built from it; the vector field-test document (31 slots)
+passes the guard. Broadening all of this end to end is exactly what the
 volunteer pack flow and corpus campaign exist to collect.
 
 ## 10. Known limitations & backlog

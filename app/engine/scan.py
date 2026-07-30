@@ -144,12 +144,14 @@ def score_meta(line_obs, word_obs, meta):
             "p_value": binom_p(ok, tot)}
 
 
-def attribute(manifest, img_path, workdir, source):
+def attribute(manifest, img_path, workdir, source, only_pages=None):
     """Run the full scan. Returns the result dict (also written to
-    workdir/result.json by the caller)."""
+    workdir/result.json by the caller). only_pages restricts which page
+    indices may match (used by the self-verify guard; None = any page)."""
     test_id = manifest["test_id"]
     marked = [d for d in manifest["docs"] if d["marked"]]
-    page_nlines = {p["page_index"]: p["n_lines"] for p in marked[0]["pages"]}
+    page_nlines = {p["page_index"]: p["n_lines"] for p in marked[0]["pages"]
+                   if only_pages is None or p["page_index"] in only_pages}
 
     gray = cv2.imread(img_path, cv2.IMREAD_GRAYSCALE)
     if gray is None:

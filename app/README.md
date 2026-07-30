@@ -102,7 +102,7 @@ up.
 python app/selftest.py
 ```
 
-End-to-end self-test (294 checks) run in server mode (FF_MODE=server)
+End-to-end self-test (299 checks) run in server mode (FF_MODE=server)
 against a throwaway FF_APPDATA: the original research-pipeline checks
 (layout, generation, commitment, simulated leaks, control credibility,
 PDF modes, the Phase A real-capture regression at line-shift 0.933) plus

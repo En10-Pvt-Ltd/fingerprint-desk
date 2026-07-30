@@ -77,6 +77,23 @@ Multiple photos from one contributor are **pooled** by taking the best-read phot
 page (same-page photos are correlated, so they don't stack), which strengthens a reading
 without inflating it.
 
+### Self-verify at creation
+
+The same rule runs once more, *before* any copy leaves the machine. When a campaign is
+generated the app decodes **each copy's own clean render** through this exact decoder and
+requires it to attribute to itself — top copy, accuracy ≥ `0.95`, clearing the gates above.
+If the true copy does not win, the campaign is **refused** (fail closed, no override), and
+the cause is named because the remedies differ:
+
+- the marks **don't read back on this document type** (heavy headings, graphics, columns) →
+  switch to a document that is mostly continuous body text; or
+- there are **too few readable marks** to clear `MIN_BITS` even from a flawless render (the
+  document is too short) → use a longer document, or more pages.
+
+A document that could never trace a leak is rejected at creation, not discovered after a
+print run. Round-trip readability is a property of the layout, shared across copies, so a
+bounded sample of copies is checked.
+
 ## 6. Carriers
 
 One rule and one meta schema, four ways to apply the shift:

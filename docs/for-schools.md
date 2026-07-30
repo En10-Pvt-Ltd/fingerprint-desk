@@ -60,6 +60,19 @@ password). Then click **Start a test**.
 > record is sealed **before** you hand anything out — the strongest form of proof if a leak is
 > ever disputed. See the recovery key and receipt in "Read this first" above.
 
+> **The app checks your document before you rely on it.** After making the copies it reads the
+> hidden marks back from a clean copy, using the same reader a real investigation would. If they
+> don't come through, it **will not create the campaign** — no print run wasted on a document
+> that could never be traced. It tells you which of two things went wrong, because the fix
+> differs:
+> - *the marks don't read back on this kind of document* (mostly headings, graphics, or
+>   columns) → paste the text instead, or use a document that is mostly ordinary paragraphs;
+> - *too little markable text* (the document is very short) → use a longer document, or include
+>   more pages.
+>
+> Plain body-text documents — exam papers, memos, reports — work best; but you never have to
+> guess, because the app verifies your specific document rather than leaving it to chance.
+
 ## Step 3 — Download, print, distribute
 
 - Download the copies. For a whole campaign, use **Download all copies (ZIP)** — one click

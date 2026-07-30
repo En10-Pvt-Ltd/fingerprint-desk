@@ -45,15 +45,13 @@ import secrets
 
 from engine import (APPDATA, REPO, store, render, scan, channel_sim,
                     render_pdf, scan_pdf, scan_raster, db, jobs, packs,
-                    recovery, commitment)
+                    recovery, commitment, self_verify)
 import auth
 
 
 def _runner_for(manifest):
-    """Attribution runner by carrier type."""
-    return {"pdf_preserved": scan_pdf,
-            "pdf_raster": scan_raster,
-            "pdf_vector": scan_raster}.get(manifest.get("type"), scan)
+    """Attribution runner by carrier type (the guard shares this dispatch)."""
+    return self_verify.runner_for(manifest)
 
 log = logging.getLogger("fingerprint-desk")
 logging.basicConfig(level=logging.INFO)
@@ -627,6 +625,32 @@ def create_test(req: CreateReq, user=Depends(require_user),
                 render.generate_test(req.name, req.content,
                                      req.variant_labels, n_controls,
                                      req.sample_used, test_id)
+            # generate_test / the PDF worker mark the manifest "generated" as
+            # soon as the artifacts exist. The client polls that status, so
+            # demote it to a transient state until the self-verify guard passes
+            # AND the roster is bound -- otherwise a caller could act on a
+            # "generated" campaign whose marks are unverified or whose roster is
+            # not yet written.
+            m = store.load_manifest(test_id)
+            m["status"] = "verifying"
+            store.save_manifest(m)
+            # Generate-time self-verify guard: decode each variant's own clean
+            # render through the real investigation decoder and refuse to
+            # publish a campaign whose marks do not read back (fail closed, no
+            # override). Runs before the roster is bound so a rejected campaign
+            # writes no mapping.
+            report = self_verify.verify(store.load_manifest(test_id))
+            if not report["ok"]:
+                m = store.load_manifest(test_id)
+                m.update({"status": "rejected",
+                          "reject_reason": report["reason"],
+                          "self_verify": report["detail"]})
+                store.save_manifest(m)
+                db.set_test_status(test_id, "rejected")
+                log.info("self-verify rejected %s: %s", test_id,
+                         report["detail"].get("failed_variants")
+                         or report["detail"].get("error"))
+                return
             if is_roster:
                 # Bind + seal the who-received-which mapping at creation: copy
                 # v(i+1) -> the i-th recipient. This is the ONLY place a roster
@@ -637,6 +661,11 @@ def create_test(req: CreateReq, user=Depends(require_user),
                     test_id, req.roster_mode, req.identity_scheme or "label",
                     [(f"v{i + 1}", roster_sealed[i], roster_contacts[i])
                      for i in range(len(roster_sealed))])
+            # Everything verified and bound: publish the campaign (manifest
+            # status is what the client polls on).
+            m = store.load_manifest(test_id)
+            m["status"] = "generated"
+            store.save_manifest(m)
             db.set_test_status(test_id, "generated")
         except Exception as e:
             log.exception("generation failed for %s", test_id)
@@ -923,6 +952,10 @@ def _name_recipient(test_id, result):
 @app.get("/api/tests/{test_id}/pdf/{doc_id}")
 def pdf(test_id: str, doc_id: str, user=Depends(require_user)):
     m = _manifest(test_id, user, allow_shared=True)
+    if m.get("status") != "generated":
+        # a campaign still generating, or refused by the self-verify guard, is
+        # not distributable (fail closed)
+        raise HTTPException(409, "this campaign is not available for download")
     if not store.valid_id(doc_id):
         raise HTTPException(404, "no such doc")
     doc = next((d for d in m.get("docs", []) if d["doc_id"] == doc_id), None)

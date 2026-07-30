@@ -49,6 +49,10 @@ Stated plainly, because a forensic tool that oversells itself is worse than usel
   copies exist, there is nothing to trace.
 - **Small fragments are leads, not proof.** A single cropped question can point at a
   source but cannot untangle a colluding group.
+- **Some documents can't carry the mark** — heavy graphics, large headings, columns, or
+  very little text. You don't have to guess which: the app **verifies your specific
+  document when it makes the copies and refuses** (with the reason and a fix) if the marks
+  don't read back. See [Every campaign is self-verified](#every-campaign-is-self-verified).
 
 ## Validation status
 
@@ -64,6 +68,24 @@ Be skeptical of any watermarking project that will not tell you this table.
 **The simulated channel is never reported as a result.** A corpus campaign collecting real
 print-photograph-messaging captures across many printers and phones is in progress. Results
 will be published here with the raw corpus.
+
+## Every campaign is self-verified
+
+**What works best** (advice, so you can choose before a print run): continuous body text at
+a normal size — an exam paper, a memo, a report. Documents that are mostly headings,
+graphics, columns, or very short tend to carry too few readable marks.
+
+**The guarantee, regardless of the document:** when the app makes the copies it decodes each
+copy's *own clean render* through the **same decoder a real investigation uses**, and
+**refuses to create the campaign** (fail closed, no override) if the true copy does not read
+back clearly. It distinguishes the two causes, because the fixes differ:
+
+- *marks don't read back on this document type* (graphics, headings, columns) → paste the
+  text, or use a document that is mostly continuous body text;
+- *too few readable marks* (the document is too short) → use a longer document, or more pages.
+
+So you never unknowingly print and distribute a document that could never be traced — the
+"hope you picked a good document" caveat is now something the app checks and enforces for you.
 
 ## Quick start
 

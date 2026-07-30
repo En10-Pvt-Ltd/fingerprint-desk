@@ -1045,6 +1045,17 @@ function viewNew() {
           clearInterval(poll);
           if (r.capacity_warning) SHARE_WARNING = r.capacity_warning;
           location.hash = "#/test/" + r.test_id;
+        } else if (m.status === "rejected") {
+          // The generate-time self-verify guard refused this document: its
+          // marks do not read back, so a leak could not be attributed. Fail
+          // closed — no proceed-anyway path; the operator must use a different
+          // document or the rendered carrier.
+          clearInterval(poll);
+          status.innerHTML = `<div class="callout callout-warn">`
+            + `<strong>This document can't be tagged reliably.</strong><br>`
+            + `${esc(m.reject_reason || "The invisible marks did not read "
+              + "back from a clean copy, so a leak could not be traced.")}</div>`;
+          document.getElementById("w-go").disabled = false;
         } else if (m.status === "error") {
           clearInterval(poll);
           status.textContent = "Something went wrong preparing the copies. "

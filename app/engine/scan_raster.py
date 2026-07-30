@@ -23,7 +23,8 @@ def _page_meta(meta, page_index):
     return next(p for p in meta["pages"] if p["page_index"] == page_index)
 
 
-def attribute(manifest, img_path, workdir, source):
+def attribute(manifest, img_path, workdir, source, only_pages=None):
+    # only_pages: restrict the page search to these indices (see scan_pdf).
     test_id = manifest["test_id"]
     marked = [d for d in manifest["docs"] if d["marked"]]
     metas = {d["doc_id"]: load_doc_meta(test_id, d["doc_id"]) for d in marked}
@@ -39,6 +40,8 @@ def attribute(manifest, img_path, workdir, source):
     candidates, last = [], {}
     for pg in layout["pages"]:
         if not pg["slots"]:
+            continue
+        if only_pages is not None and pg["page_index"] not in only_pages:
             continue
         obs = raster_mark.observe(img_path, pg, workdir=workdir)
         path = "raster"
