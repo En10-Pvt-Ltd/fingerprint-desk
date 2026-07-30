@@ -1,6 +1,8 @@
 # Current State — Forensic Document Fingerprinting
 
-_Audit date: 2026-07-26 · branch `claude/crowdsource-demo` (merged to `main` at `3d93d12`/`3943732`)_
+_Audit date: 2026-07-26, refreshed 2026-07-30 through the FF_MODE auth redesign,
+the recovery key + commitment receipt, roster/count campaigns (300 cap) with the
+pre-distribution seal, and bulk ZIP download._
 
 ## 1. What this project is
 
@@ -57,7 +59,7 @@ vector fallback chain in the isolated worker).
 | Carrier | Mode | Input it handles | Engine | How it marks | Status |
 |---|---|---|---|---|---|
 | **Rendered** | `rendered` | pasted text / extracted PDF text | `render.py` + `encode.py`/`decode.py` | app re-typesets and shifts lines+words | Validated on a **real** phone capture (14/15 line bits, 0.933) |
-| **Preserved** | `pdf_preserved` | text PDFs (formatting kept) | `pdf_mark.py` / `pdf_scan.py` / `scan_pdf.py` | edits text-showing ops in the content stream | Validated on synthetic + WhatsApp channel sim |
+| **Preserved** | `pdf_preserved` | text PDFs (formatting kept) | `pdf_mark.py` / `pdf_scan.py` / `scan_pdf.py` | edits text-showing ops in the content stream | Synthetic + WhatsApp sim, plus one limited real capture (`field-test-002/`, 1 of 2 doc classes passed) |
 | **Raster** | `pdf_raster` | scanned / image-only PDFs | `raster_mark.py` / `scan_raster.py` | nudges pixel-row strips of the page image (±2 px), re-embedded losslessly | Field-tested on a scanned NEET paper (synthetic decode) |
 | **Vector** | `pdf_vector` | outline-text PDFs (glyphs as paths) | `vector_mark.py` / `scan_raster.py` | translates each line's paths ±0.48 pt in the content stream | Field-tested on a CBSE Accountancy paper (synthetic + WhatsApp sim) |
 
@@ -79,25 +81,40 @@ A single-process FastAPI app (`app/serve.py`) over the research pipeline.
 SQLite + an in-process job queue + CPU-bound OpenCV decoding — deliberately
 one worker.
 
-**Owner/contributor flow (authenticated):** Google sign-in (dev sign-in form
-locally) → paste text or upload a PDF → the app auto-detects the carrier and
-previews capacity → generate N fingerprinted variants + 1 unmarked control,
-sealing a SHA-256 **commitment** over ground truth → share the campaign
-(open or *assigned* mode, one unique variant per contributor) → contributors
-print, photograph, upload → blind decode returns a plain-language verdict →
-contributor confirms the truth (they know which copy they printed), producing
-the ground-truth label. A **pooled verdict** combines the best photo of each
-page (same-page photos don't double-count).
+**Auth (FF_MODE):** two modes only — `local` (no accounts; the implicit
+operator is admin; loopback-only) and `server` (email+password local accounts;
+a one-time first-run screen creates the admin; further accounts via single-use
+invite links). Google sign-in and the dev-login shim were removed in the
+FF_MODE redesign; `ADMIN_EMAILS` is a bootstrap seed only.
 
-**HTTP surface (26 app routes + 5 auth routes), notable ones:**
+**Owner flow:** sign in → paste text or upload a PDF → auto-detect carrier +
+preview capacity → name the copies (**Quick** 2–5, or admin **count**/`{n}`
+pattern / **roster** paste/CSV, up to 300) → generate variants + 1 unmarked
+control, sealing a SHA-256 **codebook commitment**; a roster/count campaign
+also binds who-gets-which at creation (`pre_distribution` seal), a join
+campaign binds it as recipients claim copies (`snapshot`) → distribute (per-copy
+PDF, or **Download all copies (ZIP)**) → leaked photo uploaded → blind decode
+returns a plain-language verdict, naming the recipient for roster/imported
+campaigns → contributor confirms the truth (join campaigns). A **pooled
+verdict** combines the best photo of each page.
+
+**Recovery key + receipt:** any campaign can export a self-contained recovery
+key (`<id>.fdkey.json`, encrypted at rest by default — Argon2id + AES-256-GCM)
+and a small commitment receipt; a key imported on another install investigates
+a leak and names the recipient, even if the original data directory is gone.
+
+**HTTP surface, notable ones:**
 - `POST /api/analyze-pdf` — carrier auto-detection + capacity, untrusted PDF
   parsed only in the isolated child process.
-- `POST /api/tests` / `GET /api/tests/{id}` / `/verify` / `/pdf/{doc}` /
-  `/scan` / `/simulate` / `/feedback` — the test lifecycle.
+- `POST /api/tests` (roster/count aware) / `GET /api/tests/{id}` / `/verify` /
+  `/pdf/{doc}` / `/scan` / `/simulate` / `/feedback` — the test lifecycle.
+- Recovery: `/api/tests/{id}/recovery-info` / `/recovery-key` / `/receipt`,
+  `POST /api/import-recovery-key`; `GET /api/tests/{id}/copies.zip` (bulk).
 - `GET /api/files/{id}/{subpath}` — ownership-gated; ground-truth metas are
   **never** servable.
 - Assigned campaigns: `/api/campaigns`, `/join`, `/funnel`.
-- Admin: `/api/admin/stats`, `/contributions`, `/export`, `/tests/{id}/share`.
+- Admin: `/api/admin/stats`, `/contributions`, `/export`, `/tests/{id}/share`,
+  `/invite`.
 - Pack flow (no auth): `GET /api/packs/{id}`, `POST /api/packs/{id}/scan`,
   `GET /packs/{zip}`.
 
@@ -145,7 +162,9 @@ resolved. Verified properties:
   unservable as files. Path traversal blocked; pack tests live outside the
   ownership DB so their truth metas are unreachable.
 - Uploads capped (size, pixel count, min resolution) behind a shared
-  validator; dev-login is triple-gated off for the production config.
+  validator. Server mode uses Argon2id passwords, generic login errors (no
+  user enumeration), per-IP + per-email login rate limits, single-use expiring
+  invites, and session regeneration on login.
 - Pack surface hardened: per-pack capture cap, per-client rate limits (the
   app trusts the proxy's `X-Forwarded-For` only when `FF_TRUST_PROXY=1`,
   set in the shipped compose because the app port is never published), and
@@ -154,13 +173,14 @@ resolved. Verified properties:
 ## 7. Testing & CI
 
 - **`app/selftest.py`** — end-to-end over the live API via FastAPI
-  TestClient, throwaway `FF_APPDATA`. **167 checks** across 20 sections
+  TestClient, throwaway `FF_APPDATA`. **293 checks** across sections
   `[0]`–`[16]`, covering auth/CSRF/ownership, generation + commitment,
   simulated + real-capture attribution, the margin rule / resolution gate /
   pooled verdict, all four carriers (rendered, preserved, rich-content,
   raster/vector), quotas, shared + assigned campaigns, corpus export, and the
-  full pack flow with the reveal gate and capture cap. Requires a **serif**
-  font via `FF_FONT_PATH` (the default path is Linux-only).
+  full pack flow with the reveal gate and capture cap. Uses the bundled
+  Liberation Serif (SIL OFL) by default on every OS; override with a serif
+  `FF_FONT_PATH` only if you want a different face.
 - **`metrics.py`** self-test reproduces the spec's worked tier cells.
 - **`.github/workflows/ci.yml`** — metrics self-tests, the app selftest, the
   demo-site verification gate, and the submission-scoring selftest on a plain
@@ -185,14 +205,20 @@ resolved. Verified properties:
 
 ## 9. Important caveat on "validated"
 
-Per `CLAUDE.md`, **the synthetic channel is never a result.** The single
-real-world go/no-go so far is the rendered-carrier smoke test
-(`received.jpeg`, a real print→photo, 14/15 line bits). The three PDF
-carriers (preserved, raster, vector) are validated on the **synthetic channel
-and the app's WhatsApp channel simulation** and on real *source documents*,
-but have **not yet been through a real print → photograph → messaging-app
-capture**. That end-to-end real-capture corpus is exactly what the volunteer
-pack flow exists to collect.
+Per `CLAUDE.md`, **the synthetic channel is never a result.** Two carriers
+have a real print → photograph → messaging capture so far: the rendered-carrier
+smoke test (`received.jpeg`, 14/15 line bits) and the **preserved** carrier
+(`field-test-002/`, a real print → phone photo → WhatsApp hop via
+`app/m3_check.py`). The preserved result is deliberately *limited*: of two
+document classes, only `times11` passed the M3 gate (aggregate 37/41 = 0.902,
+page-1 14/14 and 13/14, control at chance 29/54 = 0.537); the 10 pt
+heading-heavy class did **not** validate and is recorded as such, and some
+segmentation filters were partly post-hoc — see `field-test-002/README.md`.
+The **raster** and **vector** carriers are validated only on the **synthetic
+channel and the app's WhatsApp channel simulation** and on real *source
+documents*, and have **not yet** been through a real print → photograph →
+messaging capture. Broadening all of this end to end is exactly what the
+volunteer pack flow and corpus campaign exist to collect.
 
 ## 10. Known limitations & backlog
 

@@ -2,8 +2,8 @@
 
 *(Analysis document. Claims about this system trace back to the repo record:
 `spec-v0.3-delta.md` for the adversary model, carrier choice, and evidence
-tiers; `PROGRESS.md` for the field-test numbers; `docs/story-for-everyone.md`
-for the plain-language framing.)*
+tiers; `robust_decode/` and `field-test-002/` for the real-capture numbers;
+`docs/story-for-everyone.md` for the plain-language framing.)*
 
 Three established technologies hide information in printed pages:
 
@@ -32,9 +32,9 @@ channel it survives, what guarantees it gives, and what it costs.
 | Carrier spatial frequency | High (sub-0.1 mm dots) | High (halftone microstructure) | Low–medium | **Lowest available** (whole-line / whole-word positions, 170–250 µm shifts) |
 | Needs to embed | Color laser printer with vendor MIC firmware | Halftone-controlled print pipeline; image/shaded content on the page | Software | **Software only; any mono laser** |
 | Needs to detect | High-res scan or blue light, physical page or near-lossless capture | High-res scan, often registration to a reference | Usually scanner-quality recapture | **The leaked phone photo itself**; blind decode, no original, no fiducials |
-| Survives phone photo + WhatsApp hop | No (dots vanish under downscale + JPEG) | No (microstructure destroyed) | Not designed for it | **Yes — field-validated** (M3 gate: 0.902 accuracy, controls at chance) |
+| Survives phone photo + WhatsApp hop | No (dots vanish under downscale + JPEG) | No (microstructure destroyed) | Not designed for it | **Yes — confirmed on a real capture** (rendered carrier, ≈14/15 line-shift bits recovered; unmarked control reads chance) |
 | Removability | Separable from content: `deda` toolkit strips dots; mono printing never adds them | Reprint/re-screen destroys it (and the mark) | Re-typesetting | Re-typesetting only — which **destroys the leak's authenticity** |
-| Collusion model | None | None | Typically none | **Tardos floor + position-blind region-routing analysis (Stage-0 purity decoding)** |
+| Collusion model | None | None | Typically none | **None shipped yet** (single-carrier); collusion-resistant coding (Tardos) is designed but future work |
 | Error guarantees | Heuristic ("this printer") | Heuristic | Usually heuristic | **Quantified false-accusation probability with tiers** (courtroom = 10⁻⁶), FPR-must-be-zero rule on unmarked controls |
 
 ## The four differences that matter
@@ -57,22 +57,28 @@ uses the lowest-frequency carrier available: whole-line and whole-word
 position shifts of 170–250 µm (two to three hair widths), read as
 **sign-only differentials** (baseline-spacing for lines, adjacent-gap-width
 for words), which makes the decoder scale-free across capture resolutions.
-This is field-validated, not theoretical: the M3 physical gate in
-`PROGRESS.md` records real print → hand-held phone photo → real WhatsApp
-hop decoding at 37/41 = 0.902, with unmarked controls reading chance
-(0.537) — the decoder reads embedded signal, not layout artifacts.
+This has been confirmed on a real capture, not just in simulation: a real
+print → hand-held phone photo → WhatsApp hop of a rendered (Carrier 1) page
+decoded at roughly 14/15 line-shift bits, while the unmarked control read at
+chance — the decoder reads embedded signal, not layout artifacts. That is a
+single real capture (one printer, one phone); broader real-world numbers are
+what the corpus benchmark campaign is collecting (see Honest limitations).
 
-**3. It survives colluders and produces defensible numbers.** If two leakers
-combine their copies, none of the three listed technologies has anything to
-say. Here, the symbol layer carries a Tardos code (the unconditional floor
-against the full marking adversary), and the realizable print colluder is
-strictly weaker: photographing pages, they can only route whole regions from
-one copy or another, so each leaked region purely convicts the copy it came
-from (spec §1, Stage-0 purity decoding). The output is not "probably this
-copy" but a false-accusation probability computed from the power-corrected
-master inequality (`metrics.py`), mapped to evidence tiers — with the
-courtroom tier at ε₁ = 10⁻⁶ and a hard rule that false positives on
-unmarked controls must be exactly zero.
+**3. It produces defensible numbers, and has a designed path against
+colluders.** If two leakers combine their copies, none of the three listed
+technologies has anything to say. This system's *shipped* pipeline is
+single-carrier with **no anti-collusion coding yet** — several colluders can
+still weaken or confuse the mark, and fragments from a group are leads, not
+proof of an individual (see the threat model). The design answer, future work,
+is a Tardos code at the symbol layer as the unconditional floor, on top of the
+realistic-print-colluder argument (photographing pages, colluders can only
+route whole regions from one copy or another, so each region convicts the copy
+it came from — spec §1). What *does* ship today is the honest-number
+discipline: the output is not "probably this copy" but a false-accusation
+probability from the power-corrected master inequality (`metrics.py`), mapped
+to evidence tiers (the tier constants are calibration placeholders the corpus
+benchmark will fix), with a hard rule that false positives on unmarked controls
+must be exactly zero.
 
 **4. Removing it costs the leaker the thing they want.** Yellow dots are
 *separable* from the document: the TU Dresden `deda` toolkit strips them,

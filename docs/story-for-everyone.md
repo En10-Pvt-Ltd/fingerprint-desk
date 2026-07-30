@@ -51,8 +51,8 @@ survived, and the computer read it **perfectly**.
 
 **Test 2: does it work in real life, not just on a computer?** We printed
 tagged papers, photographed them with a phone, and sent them through real
-WhatsApp. The computer read the tags almost perfectly, **14 out of 14**
-secret marks on one copy and **13 out of 14** on the other, and correctly
+WhatsApp. The computer read the tags almost perfectly — **14 out of 14**
+secret marks on one copy and **13 out of 14** on the other — and correctly
 said which copy was which. To be fair about the size of this test: it was
 two tagged copies from one printer and one phone; the promise that it
 scales to thousands of copies rests on the mathematics behind the system

@@ -33,14 +33,9 @@ python -m venv .venv && . .venv/bin/activate     # Windows: .venv\Scripts\activa
 pip install -r requirements.txt -r app/requirements.txt
 ```
 
-**Font note (required):** the encoder needs a **serif** TrueType font, and the default
-path is Linux-only (the container reference `DejaVuSerif.ttf`). On other platforms point
-to a serif face:
-
-```bash
-export FF_FONT_PATH=/path/to/DejaVuSerif.ttf     # macOS/Linux
-$env:FF_FONT_PATH = "C:\Windows\Fonts\times.ttf" # Windows PowerShell
-```
+**Font:** none to configure. A serif face (Liberation Serif, SIL OFL 1.1) is bundled under
+`assets/fonts/` and is the default on every OS. Set `FF_FONT_PATH` to another serif `.ttf`
+only for a deliberate font experiment.
 
 ## Running the tests
 
@@ -48,8 +43,8 @@ The end-to-end self-test drives the live API in-process (no server needed) again
 throwaway data dir, and is the gate every change must pass:
 
 ```bash
-FF_FONT_PATH=/path/to/serif.ttf python app/selftest.py     # expects "ALL N CHECKS PASSED"
-python metrics.py                                          # reproduces the spec's tier cells
+python app/selftest.py     # no font env needed; expects "ALL N CHECKS PASSED"
+python metrics.py          # reproduces the spec's tier cells
 ```
 
 **CI on Linux is authoritative.** The suite passing locally on Windows or macOS is

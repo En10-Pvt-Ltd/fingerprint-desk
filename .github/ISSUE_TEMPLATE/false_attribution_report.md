@@ -29,4 +29,4 @@ the margin over the runner-up.
 What did the control read? (This is the check every operator should run.)
 
 **Environment**
-OS, Python version, how you ran it, `FF_FONT_PATH`.
+OS, Python version, how you ran it, and any custom `FF_FONT_PATH` (a serif font is bundled by default).

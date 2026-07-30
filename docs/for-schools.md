@@ -45,22 +45,30 @@ password). Then click **Start a test**.
 
 - Paste the document text, or upload a PDF. The tool previews how many pages it will produce
   and whether each page can carry a strong hidden mark.
-- Choose how many copies to make. **The point-and-click app currently makes 2 to 5 copies at
-  a time**, each auto-named *Variant 1, Variant 2, …*, plus **one unmarked control**
-  automatically.
+- Choose how the copies are named:
+  - **Quick** — a small handful of copies (2–5), auto-named *Variant 1, Variant 2, …*. This
+    is what a signed-in contributor gets on a shared campaign.
+  - **By pattern** (admin) — a count and a pattern such as `Centre-{n}`, producing
+    `Centre-1 … Centre-300`. You see the generated names before committing.
+  - **By roster** (admin) — paste a list, or upload a CSV, of your real recipients (one per
+    line); each line becomes one named copy. A review screen shows each name exactly as it
+    will be recorded, flags duplicates, and won't let you generate until it's clean.
+  Either admin mode makes **up to 300 copies**, plus **one unmarked control** automatically.
 - Press **Create the marked copies**.
 
-> Larger named campaigns — one copy per centre or per student, with your own naming such as
-> `Centre-1 … Centre-40` — are **planned but not yet available** in the app. Today they
-> require the command-line tool; ask your operator.
+> A roster (or pattern) campaign fixes *which copy goes to which recipient at creation*, so its
+> record is sealed **before** you hand anything out — the strongest form of proof if a leak is
+> ever disputed. See the recovery key and receipt in "Read this first" above.
 
 ## Step 3 — Download, print, distribute
 
-- Download each copy's PDF from the test page. (A single **download-all-as-a-ZIP** button is
-  **planned but not yet available** — for now, download the copies one at a time.)
+- Download the copies. For a whole campaign, use **Download all copies (ZIP)** — one click
+  gives you every copy's PDF, named to match, with the unmarked control kept in a separate
+  `_control/` folder and clearly marked *do not distribute*. (You can still download copies
+  one at a time from the campaign page.)
 - **Print at 100% / actual size** (not "fit to page"), on plain white paper. **Do not
-  photocopy** the copies — photocopying can blur the mark. Hand each recipient their own copy
-  and record who received which.
+  photocopy** the copies — photocopying can blur the mark. Hand each recipient their own copy.
+  (A roster campaign already records who gets which; otherwise write it down yourself.)
 
 ## Step 4 — Investigate a leak
 

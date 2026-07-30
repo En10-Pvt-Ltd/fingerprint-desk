@@ -30,8 +30,8 @@ further investment.
 marked baseline +/- 2 px (1/150 in), 15 bits/page. Word-shift: alternating
 interior words only (adjacent coded words would share a gap and cancel, ISI),
 gap +/- 3 px (1/100 in); the slot count follows the font's layout
-(~273 bits/page with the container's DejaVu Serif, ~355 with the pinned
-Windows face, Times New Roman). Payload 64 PRN bits with repetition,
+(~273 bits/page with the bundled Liberation Serif, the default on every OS;
+a different serif face gives a slightly different count). Payload 64 PRN bits with repetition,
 majority vote. Decoder is blind (no fiducials, geometry from baselines and
 profiles, sign decisions only, so scale-free); meta JSON is used only for
 scoring.

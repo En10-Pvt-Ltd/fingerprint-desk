@@ -16,8 +16,9 @@ python app/serve.py       # -> http://localhost:8765
 
 With `FF_MODE` unset and the default loopback bind this is **local mode**:
 every request acts as the implicit local operator (an admin); the server
-refuses to bind to anything but loopback. On Linux also set
-`FF_FONT_PATH=/usr/share/fonts/truetype/dejavu/DejaVuSerif.ttf`.
+refuses to bind to anything but loopback. Rendering uses the bundled Liberation
+Serif font, so no font setup is needed on any OS (override with `FF_FONT_PATH`
+only for a deliberate font experiment).
 
 ## Deploy (VPS — server mode)
 
@@ -101,7 +102,7 @@ up.
 python app/selftest.py
 ```
 
-End-to-end self-test (202 checks) run in server mode (FF_MODE=server)
+End-to-end self-test (293 checks) run in server mode (FF_MODE=server)
 against a throwaway FF_APPDATA: the original research-pipeline checks
 (layout, generation, commitment, simulated leaks, control credibility,
 PDF modes, the Phase A real-capture regression at line-shift 0.933) plus

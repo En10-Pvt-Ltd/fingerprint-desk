@@ -19,7 +19,7 @@ anything containing real personal data or a document you do not have permission 
 - Carrier / mode (rendered / preserved / raster / vector), if known:
 - How you ran it (docker compose / `python app/serve.py` / self-test):
 - OS and Python version:
-- `FF_FONT_PATH` set to a serif font? (yes/no, which)
+- Custom `FF_FONT_PATH`? (a serif font is bundled by default — only note this if you overrode it)
 
 **Self-test**
 Does `python app/selftest.py` pass on your machine? (paste the last line)

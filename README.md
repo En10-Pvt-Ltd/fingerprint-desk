@@ -57,7 +57,7 @@ Be skeptical of any watermarking project that will not tell you this table.
 | Carrier | What it handles | Real print -> photo -> messaging tested? |
 |---|---|---|
 | Rendered (line + word shift) | pasted text, extracted PDF text | Yes, limited: 14/15 bits recovered on a real capture |
-| Preserved (text PDFs) | text PDFs, layout kept | Not yet, simulated channel only |
+| Preserved (text PDFs) | text PDFs, layout kept | Limited: one real capture (`field-test-002/`) — 1 of 2 document classes passed (`times11` aggregate 37/41 = 0.902, page-1 14/14 and 13/14); the 10 pt heading-heavy class did not, and is recorded as such — plus simulated channel |
 | Raster (scanned PDFs) | image-only PDFs | Not yet, simulated channel only |
 | Vector (outline-text PDFs) | glyphs as paths | Not yet, simulated channel only |
 

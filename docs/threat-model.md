@@ -96,9 +96,10 @@ above in your favour if used well:
   is what makes an accusation checkable without trusting the operator's disk.
 - The **recovery key** carries the full codebook and mapping (but never the document). It is
   the backup that survives a lost data directory, and lets an investigation run on another
-  machine. Because it *is* ground truth, whoever holds it can trace — so it is exported under
-  a confidentiality warning and (in a later build) encrypted at rest. A leaked key exposes the
-  who-received-which mapping, but never the document itself.
+  machine. Because it *is* ground truth, whoever holds it can trace — so it is encrypted at
+  rest by default (Argon2id + AES-256-GCM, passphrase-derived; a forgotten passphrase is
+  unrecoverable), with a warned plaintext opt-out. A leaked key exposes the who-received-which
+  mapping, but never the document itself.
 
 Protect and back up the data directory (the `/data` volume). A recovery key is the second line
 of defence when that fails; the receipt is the anchor that survives even losing both.

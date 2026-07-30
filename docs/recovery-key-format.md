@@ -144,10 +144,11 @@ digest checks work without decrypting); the sensitive core lives in `payload`.
     "mapping_seal":    "snapshot | pre-distribution",
     "algo": "<human description>", "committed_utc": "<seal time>"
   },
-  "encryption": null,               // reserved; a future build sets this when the
-                                    // payload is encrypted at rest (Argon2id + AEAD)
-  "payload_sha256": "<64 hex>",     // SHA-256(canonical(payload)) — truncation/tamper check
-  "payload": {
+  "encryption": null | { ... },     // null = plaintext payload; otherwise the payload is
+                                    // encrypted at rest — see "Encryption" below
+  "payload_sha256": "<64 hex>",     // SHA-256(canonical(payload)) — truncation/tamper check,
+                                    // over the PLAINTEXT payload (checkable after decrypt)
+  "payload": {                      // an object when plaintext; a base64 string when encrypted
     "test_id": "<test_id>",
     "manifest": { ... },            // the campaign manifest, verbatim (the codebook index)
     "copies":   { "<doc_id>": [<page_meta>, ...] | <meta> },   // per-copy ground truth
@@ -165,9 +166,32 @@ digest checks work without decrypting); the sensitive core lives in `payload`.
    equal the values in `commitment`.
 3. Only then trust the mapping — and only as strongly as `mapping_seal` allows.
 
-When `encryption` is non-null, `payload` is a base64 ciphertext and the header (including both
-commitment digests) stays cleartext, so the digests remain checkable and escrowable without the
-passphrase. The encryption parameters will be specified here when that build ships.
+## Encryption (default on)
+
+Exporting encrypts the `payload` at rest with an operator passphrase. The header — campaign
+identity and both commitment digests — always stays cleartext, so the digests remain checkable
+and escrowable without the passphrase. When encrypted, `payload` is a base64 string (ciphertext)
+and `encryption` is:
+
+```jsonc
+"encryption": {
+  "kdf": "argon2id",
+  "argon2": { "type": "id", "version": 19, "time_cost": 3, "memory_cost": 65536,
+              "parallelism": 4, "hash_len": 32, "salt": "<base64>" },
+  "cipher": "AES-256-GCM",
+  "nonce": "<base64>"
+}
+```
+
+**Every parameter needed to derive the key and decrypt travels in the file**, so a key opens in
+a future build whose defaults have drifted. To open: derive a 32-byte key with Argon2id over the
+UTF-8 passphrase using the `argon2` params and `salt`; AES-256-GCM-decrypt `base64(payload)` with
+that key and `nonce` (no associated data). AEAD authentication failure means a **wrong
+passphrase** (or corrupted ciphertext) — distinct from a failed integrity check. Then verify
+exactly as for a plaintext key: `SHA-256` of the decrypted bytes must equal `payload_sha256`
+(else the file is **damaged or altered**), then recompute both commitments. There is **no
+recovery if the passphrase is forgotten**; store it separately from the file. A plaintext export
+(`encryption: null`) remains available for operators who will physically secure the file.
 
 ## Commitment receipt (`<campaign>-receipt.txt`)
 

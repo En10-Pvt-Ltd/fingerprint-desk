@@ -1631,9 +1631,25 @@ function resultCard(r, m) {
         alt="your photo" loading="lazy">` : "";
   let table = "";
   if (r.scores) {
-    table = `<div class="table-scroll"><table>
-      <tr><th>copy</th><th>line bits</th><th>word bits</th>
-          <th>agreement</th><th>corrected p</th></tr>` +
+    // Plain-language first, exact numbers kept — a forensic analyst needs the
+    // raw figures, a teacher needs to know what they mean.
+    const pathPlain = r.path_used === "robust"
+      ? "with extra straightening + flattening (a harder photo)"
+      : r.path_used === "clean" ? "read directly" : esc(r.path_used || "n/a");
+    table = `<div class="table-scroll">
+      <p class="muted small">Each copy carries a hidden pattern of tiny
+      <strong>line</strong> (up/down) and <strong>word</strong> (left/right)
+      shifts. The table is how many of those shifts we recovered from your photo
+      and how many matched each copy — shown as matched / read.
+      <strong>Agreement</strong> is that as a percentage; <strong>50% is pure
+      chance</strong>. <strong>False-match probability</strong> is the chance a
+      copy that was <em>not</em> the source would match this well by luck (after
+      allowing for comparing against every copy); a source is named only when it
+      is <strong>0.001 or below</strong>.</p>
+      <table>
+      <tr><th>copy</th><th>line marks<br>(matched/read)</th>
+          <th>word marks<br>(matched/read)</th><th>agreement</th>
+          <th>false-match p<br>(smaller = stronger)</th></tr>` +
       r.scores.map((s, i) => `<tr class="${i === 0 && v.attributed ? "best" : ""}">
         <td>${esc(s.label)}</td>
         <td>${s.line_tot ? `${s.line_ok}/${s.line_tot}` : "erased"}</td>
@@ -1641,9 +1657,10 @@ function resultCard(r, m) {
               : s.word_tot ? `${s.word_ok}/${s.word_tot}` : "erased"}</td>
         <td>${pct(s.acc)}</td><td>${sci(s.p_adj)}</td></tr>`).join("") +
       `</table>
-      <p class="muted small">Chance is 50%. Pipeline ${esc(r.path_used || "n/a")},
-      deskew ${r.deskew_deg ?? "?"}&deg;, ${r.n_lines_found ?? "?"} lines,
-      page ${r.page_index != null ? r.page_index + 1 : "?"}.</p></div>`;
+      <p class="muted small">"erased" means that mark couldn't be read from this
+      photo. Photo ${pathPlain}; straightened by ${r.deskew_deg ?? "?"}&deg;;
+      ${r.n_lines_found ?? "?"} text lines found; best match on page
+      ${r.page_index != null ? r.page_index + 1 : "?"}.</p></div>`;
   }
   const fb = feedbackBlock(r, m, p);
   return `<div class="card" data-scan="${esc(r.scan_id)}">
@@ -1655,7 +1672,7 @@ function resultCard(r, m) {
     </div>
     ${fb}
     <details style="margin-top:0.8rem"><summary class="muted small">Technical
-      details</summary>
+      details (the exact numbers)</summary>
       <div class="grid2" style="margin-top:0.6rem"><div>${table}</div>
       <div>${img}</div></div></details>
   </div>`;
