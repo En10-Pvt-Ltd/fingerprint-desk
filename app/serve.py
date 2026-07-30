@@ -179,7 +179,7 @@ MAX_VARIANTS = int(os.environ.get("FF_MAX_VARIANTS", 5))
 MAX_CAMPAIGN_VARIANTS = int(os.environ.get("FF_MAX_CAMPAIGN_VARIANTS", 300))
 MAX_WORDS = 20000
 MAX_PDF_MB = 20
-MAX_PDF_PAGES = int(os.environ.get("FF_MAX_PDF_PAGES", 10))
+MAX_PDF_PAGES = int(os.environ.get("FF_MAX_PDF_PAGES", 50))
 MAX_PHOTO_MB = 15
 MAX_SCAN_PIXELS = 60_000_000     # 60 MP: above any phone sensor, far below
                                  # the decode-bomb range

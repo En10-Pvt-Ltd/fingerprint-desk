@@ -699,9 +699,10 @@ for _p in glob.glob(os.path.join(store.test_dir(_bad), "docs", "v1", "page*.png"
     shutil.copy(os.path.join(store.test_dir(_bad), "docs", "ctrl1",
                              os.path.basename(_p)), _p)
 _rej = self_verify.verify(store.load_manifest(_bad))
-ok(not _rej["ok"] and _rej["detail"].get("failed_variants") == ["v1"],
-   "guard REJECTS a preserved campaign whose variant does not read back",
-   str(_rej["detail"].get("failed_variants")))
+ok(not _rej["ok"] and _rej["detail"].get("failed_variants") == ["v1"]
+   and _rej["detail"].get("cause") == "unreadable",
+   "guard REJECTS a preserved variant that reads at chance (cause=unreadable)",
+   str(_rej["detail"].get("failed_variants")) + "/" + str(_rej["detail"].get("cause")))
 shutil.rmtree(store.test_dir(_bad), ignore_errors=True)
 # FAIL (end to end, rendered): a too-sparse document is rejected through the
 # whole create path -- status 'rejected', a plain reason, and no proceed-anyway.
@@ -716,9 +717,10 @@ ok(r.status_code == 200, "sparse create accepted (generation starts)",
    str(r.json())[:80])
 _sid = r.json()["test_id"]
 _sm = wait_status(client, _sid, ("generated", "rejected", "error"))
-ok(_sm["status"] == "rejected" and _sm.get("reject_reason"),
-   "guard REJECTS a sparse document end to end (status 'rejected')",
-   _sm["status"])
+ok(_sm["status"] == "rejected" and _sm.get("reject_reason")
+   and (_sm.get("self_verify") or {}).get("cause") == "too_little_content",
+   "guard REJECTS a sparse document end to end (cause=too_little_content)",
+   _sm["status"] + "/" + str((_sm.get("self_verify") or {}).get("cause")))
 ok(client.get(f"/api/tests/{_sid}/pdf/v1").status_code != 200,
    "a guard-rejected campaign cannot be downloaded (fail closed)")
 

@@ -63,6 +63,11 @@ REJECT_REASON = REJECT_REASON_UNREADABLE
 # A failed variant that still read its own marks at >= this accuracy is a
 # capacity problem (too few marks), not a readability problem (marks misread).
 _READABLE_ACC = 0.90
+# A document that PLACED >= MIN_BITS_EMBEDDED marks but the decoder RECOVERED
+# fewer than MIN_BITS_RECOVERED has an unreadable layout (e.g. a form the decoder
+# can't segment), not too little content.
+MIN_BITS_EMBEDDED = 10
+MIN_BITS_RECOVERED = 10
 
 
 def runner_for(manifest):
@@ -112,6 +117,36 @@ def _self_attributes(pooled, doc_id):
                 and (pooled.get("agreement") or 0) >= MIN_SELF_ACC)
 
 
+def _embedded_marks(manifest, doc_id):
+    """How many marks the generator PLACED in a variant (its capacity), so we
+    can tell a genuinely low-capacity document (too few marks to begin with)
+    from one whose marks were placed but do not read back (unreadable layout --
+    e.g. a form whose 28 marks recover as 0). Returns None when it can't be
+    determined (rendered carrier, unusual meta); callers treat None as 'not a
+    high-capacity document'."""
+    try:
+        from . import render_pdf
+        meta = render_pdf.load_doc_meta(manifest["test_id"], doc_id)
+        return sum(len(p.get("bands") or p.get("slots") or [])
+                   for p in meta.get("pages", []))
+    except Exception:
+        return None
+
+
+def _variant_is_unreadable(summary):
+    """A failed variant's marks were PLACED but do not read back (fix = switch
+    document type), as opposed to too few marks to begin with (fix = longer
+    document). True when the marks read at chance, OR enough marks were embedded
+    but the decoder recovered far too few (a layout the decoder can't segment).
+    """
+    agr = summary.get("agreement")
+    if agr is not None and agr < _READABLE_ACC:
+        return True                         # marks read, but wrong (chance)
+    emb = summary.get("embedded")
+    rec = summary.get("n_bits") or 0
+    return emb is not None and emb >= MIN_BITS_EMBEDDED and rec < MIN_BITS_RECOVERED
+
+
 def _check_variant(manifest, runner, doc_id):
     """Decode a variant's own clean renders, one page at a time (passing the
     page index so the real decoder does not robust-search the other pages), and
@@ -132,6 +167,7 @@ def _check_variant(manifest, runner, doc_id):
                      "attributed_doc": pooled.get("attributed_doc"),
                      "agreement": pooled.get("agreement"),
                      "n_bits": pooled.get("n_bits"),
+                     "embedded": _embedded_marks(manifest, doc_id),
                      "p_adj": pooled.get("p_adj"),
                      "self_ok": self_ok}
 
@@ -153,13 +189,13 @@ def verify(manifest):
         detail = {"checked": summaries, "min_self_acc": MIN_SELF_ACC,
                   "n_variants_checked": len(checked)}
         if failed:
-            # Distinguish the two causes: if every failed variant still read its
-            # OWN marks accurately (>= _READABLE_ACC), the marks are fine but too
-            # few (capacity). If any failed variant read its marks poorly (a
-            # decoy won / chance), the document type defeats the decoder.
+            # Distinguish the two causes (different remedies): a document whose
+            # marks were placed but don't read back -- read at chance, or enough
+            # embedded but far too few recovered (a form/graphic layout the
+            # decoder can't segment) -- is UNREADABLE (switch document type).
+            # Otherwise the document simply carries too few marks (longer doc).
             fsum = [s for s in summaries if not s["self_ok"]]
-            unreadable = any(s["agreement"] is not None
-                             and s["agreement"] < _READABLE_ACC for s in fsum)
+            unreadable = any(_variant_is_unreadable(s) for s in fsum)
             cause = "unreadable" if unreadable else "too_little_content"
             reason = (REJECT_REASON_UNREADABLE if unreadable
                       else REJECT_REASON_CAPACITY)
