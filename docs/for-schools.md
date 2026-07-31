@@ -4,6 +4,23 @@ You do not need to be technical to *use* this, but someone does need to **run an
 you** first — either a hosted web address your IT set up, or the Docker deployment in the
 main README. This guide assumes you have an address to open and can sign in.
 
+## What documents work — check this before anything else
+
+The tool hides its tag in the **spacing between lines of text**, so it only works on documents
+that are **mostly paragraphs of ordinary text, over several pages**:
+
+- **Works:** exam and question papers, reports, contracts, long letters, manuscripts.
+- **Does not work:** forms, invoices, statements, receipts, certificates, CVs, brochures,
+  flyers, invitations, posters, slide decks, anything with lots of pictures or columns, and
+  scanned images (a photo of a page, with no real text underneath).
+
+Rule of thumb: **mostly paragraphs over several pages → works; mostly a layout (boxes, tables,
+big headings, pictures) or only a page or two → does not.** You don't have to judge it
+perfectly: when you make the copies, the tool checks your specific document and, if the hidden
+tag can't be read back, **refuses to create them and tells you why** — better to know before a
+print run than to hand out copies that could never be traced. Pick a text-heavy document and
+you're set.
+
 ## Read this first: keep the key and the receipt safe
 
 Everything needed to trace a leak — the invisible pattern in each copy and the sealed record

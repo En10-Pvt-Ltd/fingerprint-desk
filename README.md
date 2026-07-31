@@ -9,15 +9,42 @@ sub-millimetre shifts in word and line spacing. A photograph of a leaked page, t
 phone and pushed through WhatsApp, can be decoded blind to identify which copy leaked,
 with a stated probability of false accusation.
 
-Built for examination papers, and useful for any confidential document distributed to
-named recipients: legal discovery, board papers, pre-publication manuscripts, internal
-memos.
+Built for examination papers and documents like them. The mark lives in line and word
+spacing, so it needs **long, continuous, plain body text** — it is not a universal document
+tagger. Read [What documents work](#what-documents-work) **before** you prepare a print run.
 
 ```
 Upload a document  ->  Generate N named copies  ->  Print and distribute
                                                           |
         Which copy leaked?  <-  Decode  <-  Someone photographs a page
 ```
+
+---
+
+## What documents work
+
+The fingerprint is carried in the spacing **between lines of text**, so a document must have
+enough regular body-text lines, over enough pages, to hold it. This is a real limit of the
+method — check it before committing a print run, not after:
+
+**Works** — long, continuous, plain body text:
+- examination papers, reports, contracts, pre-publication manuscripts, and other multi-page
+  documents that are mostly paragraphs of ordinary body text.
+
+**Does not work** — too few lines, or a layout the decoder cannot read:
+- forms, invoices, statements, receipts, certificates;
+- CVs/résumés, brochures, flyers, invitations, posters, slide decks;
+- anything graphics-heavy or multi-column;
+- scanned images with no text layer, and password-protected PDFs.
+
+Rule of thumb: **mostly paragraphs over several pages → works; mostly a layout (fields,
+tables, headings, graphics) or only a page or two → does not.**
+
+You do not have to judge this by eye. When you generate the copies, the app decodes each
+copy's own clean render and **refuses to create the campaign** if the marks do not read
+back — telling you which problem it is (*wrong document type* → use plain body text;
+*too little text* → use a longer document). The list above is so you choose well **before**
+printing; the guard is the guarantee that a bad choice can never reach distribution.
 
 ---
 
@@ -71,21 +98,18 @@ will be published here with the raw corpus.
 
 ## Every campaign is self-verified
 
-**What works best** (advice, so you can choose before a print run): continuous body text at
-a normal size — an exam paper, a memo, a report. Documents that are mostly headings,
-graphics, columns, or very short tend to carry too few readable marks.
-
-**The guarantee, regardless of the document:** when the app makes the copies it decodes each
+[What documents work](#what-documents-work) (above) is guidance for choosing before a print
+run. This is the **guarantee** behind it: when the app makes the copies it decodes each
 copy's *own clean render* through the **same decoder a real investigation uses**, and
 **refuses to create the campaign** (fail closed, no override) if the true copy does not read
-back clearly. It distinguishes the two causes, because the fixes differ:
+back clearly. It names which of the two problems it is, because the fixes differ:
 
-- *marks don't read back on this document type* (graphics, headings, columns) → paste the
-  text, or use a document that is mostly continuous body text;
+- *marks don't read back on this document type* (graphics, headings, columns) → use a
+  document that is mostly continuous body text;
 - *too few readable marks* (the document is too short) → use a longer document, or more pages.
 
-So you never unknowingly print and distribute a document that could never be traced — the
-"hope you picked a good document" caveat is now something the app checks and enforces for you.
+So a document that could never be traced can never reach distribution — the "hope you picked
+a good document" caveat is now checked and enforced, not left to the reader.
 
 ## Quick start
 
