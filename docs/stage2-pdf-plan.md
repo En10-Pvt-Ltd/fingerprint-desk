@@ -78,7 +78,8 @@ and pagination are preserved exactly; only invisible geometry moves.
 ## Scope
 
 IN: born-digital, single-column, predominantly regular body text (exam
-papers, board papers, briefs). Line-shift carrier only. A4/Letter.
+papers, prose board minutes and briefs — not financial packs or slide
+decks, which carry too few text lines). Line-shift carrier only. A4/Letter.
 OUT (explicitly): scanned/image-only PDFs (no text objects to move),
 word-shift on justified text, multi-column layouts, fragment decoding.
 Word-shift via TJ-array spacing and multi-column support are Stage 3

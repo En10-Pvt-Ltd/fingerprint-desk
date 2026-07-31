@@ -45,6 +45,9 @@ copy's own clean render and **refuses to create the campaign** if the marks do n
 back — telling you which problem it is (*wrong document type* → use plain body text;
 *too little text* → use a longer document). The list above is so you choose well **before**
 printing; the guard is the guarantee that a bad choice can never reach distribution.
+The tested evidence behind this guidance — one representative document per claimed use
+case, plus a 14-document everyday-PDF sample — is recorded in
+[docs/document-envelope.md](docs/document-envelope.md).
 
 ---
 

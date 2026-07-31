@@ -92,7 +92,9 @@ the cause is named because the remedies differ:
 
 A document that could never trace a leak is rejected at creation, not discovered after a
 print run. Round-trip readability is a property of the layout, shared across copies, so a
-bounded sample of copies is checked.
+bounded sample of copies is checked. Measured evidence for which document classes pass —
+one representative document per claimed vertical, plus an everyday-PDF sample — is recorded
+in [document-envelope.md](document-envelope.md).
 
 ## 6. Carriers
 

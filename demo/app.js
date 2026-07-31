@@ -309,12 +309,16 @@ const INDUSTRIES = [
     row: "single page",
     note: "Each screener copy has one recipient. A single leaked page of " +
           "clean capture already sits at the strongest rows of the table." },
-  { key: "board", title: "Board papers",
-    who: "A director, observer or assistant with a numbered board pack.",
+  { key: "board", title: "Board minutes and briefs",
+    who: "A director, observer or assistant with a numbered set of minutes " +
+         "or a briefing paper.",
     channel: "A photographed page reaching a journalist or a trader.",
     row: "single page",
-    note: "Board packs are short but recipients are few; the question is " +
-          "rarely who could have leaked, it is which of a handful did." },
+    note: "This fits the prose parts of a board pack: minutes, briefs, " +
+          "memoranda of several pages of continuous text. Financial packs " +
+          "and slide decks carry too few text lines to hold the mark; the " +
+          "app checks and refuses those rather than tagging them silently. " +
+          "Recipients are few, so the question is which of a handful leaked." },
   { key: "government", title: "Government documents",
     who: "A recipient on a controlled distribution list.",
     channel: "Photographed briefing pages passed to press.",
